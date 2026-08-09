@@ -1,39 +1,30 @@
 import streamlit as st
-import base64
-import json
-from datetime import datetime
-
-from PIL import Image
-import cv2
-import numpy as np
-import fitz
+from datetime import date
 
 from config import (
-    APP_NAME,
-    APP_VERSION,
-    GEMINI_MODEL,
-    FREE_INITIAL_CREDITS,
-    HELP_ME_COST,
-    LEARN_CONCEPT_COST,
-    EXTRA_QUESTION_COST,
-    MAX_IMAGE_SIZE_MB,
-    MAX_HISTORY_ITEMS,
-    SUBJECTS,
-    CLASS_LEVELS,
-    PLANS,
-    ADS_ENABLED,
-    REWARDED_AD_CREDIT_REWARD,
-    validate_config,
+    CREDIT_COSTS,
+    PREMIUM_PACKAGES,
+    FREE_MONTHLY_CREDITS,
+)
+
+from quality import quality_check
+
+from storage import (
+    init_storage,
+    daily_login,
+    get_credits,
+    spend_credits,
+    add_credits,
+    save_history,
+    get_history,
+    can_ask_question,
+    register_question,
 )
 
 from ai import (
-    help_me,
-    help_me_image,
-    next_hint,
+    analyze_exercise,
     ask_student_question,
-    validate_skill,
     learn_concept,
-    test_connection,
 )
 
 
@@ -44,1182 +35,743 @@ from ai import (
 st.set_page_config(
     page_title="HintAI",
     page_icon="🧠",
-    layout="wide",
-    initial_sidebar_state="expanded",
+    layout="centered",
 )
 
 
 # ============================================================
-# CHARGEMENT CSS
+# STORAGE
 # ============================================================
 
-def load_css():
-    try:
-        with open("styles.css", "r", encoding="utf-8") as file:
-            css = file.read()
+init_storage()
 
-        st.markdown(
-            f"<style>{css}</style>",
-            unsafe_allow_html=True,
-        )
-
-    except FileNotFoundError:
-        pass
-
-
-load_css()
-
-
-# ============================================================
-# INITIALISATION SESSION
-# ============================================================
-
-def init_session():
-
-    if "credits" not in st.session_state:
-        st.session_state.credits = FREE_INITIAL_CREDITS
-
-    if "plan" not in st.session_state:
-        st.session_state.plan = "Free"
-
-    if "history" not in st.session_state:
-        st.session_state.history = []
-
-    if "page" not in st.session_state:
-        st.session_state.page = "Accueil"
-
-    if "help_step" not in st.session_state:
-        st.session_state.help_step = 1
-
-    if "exercise_file" not in st.session_state:
-        st.session_state.exercise_file = None
-
-    if "student_file" not in st.session_state:
-        st.session_state.student_file = None
-
-    if "exercise_bytes" not in st.session_state:
-        st.session_state.exercise_bytes = None
-
-    if "student_bytes" not in st.session_state:
-        st.session_state.student_bytes = None
-
-    if "exercise_mime" not in st.session_state:
-        st.session_state.exercise_mime = None
-
-    if "student_mime" not in st.session_state:
-        st.session_state.student_mime = None
-
-    if "exercise_context" not in st.session_state:
-        st.session_state.exercise_context = ""
-
-    if "student_context" not in st.session_state:
-        st.session_state.student_context = ""
-
-    if "current_response" not in st.session_state:
-        st.session_state.current_response = ""
-
-    if "hint_level" not in st.session_state:
-        st.session_state.hint_level = 1
-
-    if "subject" not in st.session_state:
-        st.session_state.subject = "Mathématiques"
-
-    if "level" not in st.session_state:
-        st.session_state.level = "3ème"
-
-    if "history_loaded" not in st.session_state:
-        st.session_state.history_loaded = False
-
-
-init_session()
-
-
-# ============================================================
-# UTILITAIRES
-# ============================================================
-
-def add_history(title, content, mode):
-    item = {
-        "id": datetime.now().strftime("%Y%m%d%H%M%S%f"),
-        "date": datetime.now().strftime("%Y-%m-%d %H:%M"),
-        "mode": mode,
-        "title": title,
-        "content": content,
-    }
-
-    st.session_state.history.insert(0, item)
-
-    st.session_state.history = (
-        st.session_state.history[:MAX_HISTORY_ITEMS]
-    )
-
-
-def can_spend(amount):
-    return st.session_state.credits >= amount
-
-
-def spend_credits(amount):
-    if not can_spend(amount):
-        return False
-
-    st.session_state.credits -= amount
-    return True
-
-
-def add_credits(amount):
-    st.session_state.credits += amount
-
-
-def get_file_bytes(uploaded_file):
-    if uploaded_file is None:
-        return None
-
-    return uploaded_file.getvalue()
-
-
-def file_size_ok(uploaded_file):
-    if uploaded_file is None:
-        return False
-
-    size_mb = uploaded_file.size / (1024 * 1024)
-
-    return size_mb <= MAX_IMAGE_SIZE_MB
-
-
-# ============================================================
-# CONTRÔLE QUALITÉ IMAGE LOCAL
-# ============================================================
-
-def quality_check_image(image_bytes):
-    """
-    Contrôle qualité local avec OpenCV.
-
-    Ce contrôle ne fait PAS de reconnaissance de contenu.
-    Il vérifie principalement si l'image est exploitable.
-    """
-
-    if not image_bytes:
-        return False, "Image vide."
-
-    try:
-
-        array = np.frombuffer(
-            image_bytes,
-            dtype=np.uint8,
-        )
-
-        image = cv2.imdecode(
-            array,
-            cv2.IMREAD_GRAYSCALE,
-        )
-
-        if image is None:
-            return False, "Impossible de lire l'image."
-
-        height, width = image.shape
-
-        if width < 500 or height < 500:
-            return False, (
-                "Image trop petite. "
-                "Prends une photo plus proche de l'exercice."
-            )
-
-        # Détection simple du flou avec variance du Laplacien
-        blur_score = cv2.Laplacian(
-            image,
-            cv2.CV_64F,
-        ).var()
-
-        if blur_score < 35:
-            return False, (
-                "L'image semble trop floue. "
-                "Reprends une photo plus nette."
-            )
-
-        # Contraste
-        contrast = image.std()
-
-        if contrast < 20:
-            return False, (
-                "Le contraste est insuffisant. "
-                "Évite une photo trop sombre ou trop claire."
-            )
-
-        return True, (
-            f"Image valide. "
-            f"Résolution : {width}×{height}"
-        )
-
-    except Exception as error:
-
-        return False, (
-            f"Erreur pendant le contrôle : {error}"
-        )
-
-
-# ============================================================
-# PDF → IMAGE
-# ============================================================
-
-def pdf_first_page_to_image(pdf_bytes):
-    """
-    Convertit la première page d'un PDF en image.
-
-    Pour la V1, on analyse la première page.
-    """
-
-    try:
-
-        document = fitz.open(
-            stream=pdf_bytes,
-            filetype="pdf",
-        )
-
-        if len(document) == 0:
-            return None
-
-        page = document[0]
-
-        pixmap = page.get_pixmap(
-            matrix=fitz.Matrix(2, 2),
-            alpha=False,
-        )
-
-        image_bytes = pixmap.tobytes("png")
-
-        document.close()
-
-        return image_bytes
-
-    except Exception:
-        return None
-
-
-# ============================================================
-# PRÉPARATION FICHIER
-# ============================================================
-
-def prepare_uploaded_file(uploaded_file):
-
-    if uploaded_file is None:
-        return None, None, None
-
-    if not file_size_ok(uploaded_file):
-
-        st.error(
-            f"Le fichier dépasse {MAX_IMAGE_SIZE_MB} MB."
-        )
-
-        return None, None, None
-
-    original_name = uploaded_file.name.lower()
-
-    if original_name.endswith(".pdf"):
-
-        pdf_bytes = uploaded_file.getvalue()
-
-        image_bytes = pdf_first_page_to_image(
-            pdf_bytes
-        )
-
-        if image_bytes is None:
-
-            st.error(
-                "Impossible de lire ce PDF."
-            )
-
-            return None, None, None
-
-        return (
-            image_bytes,
-            "image/png",
-            uploaded_file.name,
-        )
-
-    image_bytes = uploaded_file.getvalue()
-
-    mime_type = uploaded_file.type
-
-    if not mime_type:
-        mime_type = "image/jpeg"
-
-    return (
-        image_bytes,
-        mime_type,
-        uploaded_file.name,
-    )
-
-
-# ============================================================
-# LOCAL STORAGE - PRÉPARATION V1
-# ============================================================
-
-def export_history_json():
-    data = json.dumps(
-        st.session_state.history,
-        ensure_ascii=False,
-        indent=2,
-    )
-
-    return data
-
-
-def history_download_button():
-
-    if not st.session_state.history:
-        return
-
-    data = export_history_json()
-
-    st.download_button(
-        label="💾 Exporter mon historique",
-        data=data,
-        file_name="hintai_history.json",
-        mime="application/json",
-        use_container_width=True,
-    )
+reward = daily_login()
 
 
 # ============================================================
 # HEADER
 # ============================================================
 
-def render_header():
+st.title("🧠 HintAI")
 
-    col1, col2, col3 = st.columns(
-        [2, 5, 2]
-    )
-
-    with col1:
-
-        st.markdown(
-            "<div class='plan-badge'>"
-            f"{st.session_state.plan}"
-            "</div>",
-            unsafe_allow_html=True,
-        )
-
-    with col2:
-
-        st.markdown(
-            "<div class='hintai-logo'>🧠 HintAI</div>",
-            unsafe_allow_html=True,
-        )
-
-    with col3:
-
-        st.markdown(
-            "<div class='credits-box'>"
-            f"⚡ {st.session_state.credits} crédits"
-            "</div>",
-            unsafe_allow_html=True,
-        )
+st.caption(
+    "Ton professeur IA : comprendre avant de répondre."
+)
 
 
 # ============================================================
 # SIDEBAR
 # ============================================================
 
-def render_sidebar():
+with st.sidebar:
 
-    with st.sidebar:
+    st.header("👤 Mon compte")
 
-        st.markdown("## 🧠 HintAI")
+    st.metric(
+        "💳 Crédits",
+        get_credits()
+    )
 
-        st.caption(
-            f"Version {APP_VERSION}"
+    st.metric(
+        "🔥 Série",
+        st.session_state.streak
+    )
+
+    if reward > 0:
+
+        st.success(
+            f"🎁 +{reward} crédits aujourd'hui !"
         )
 
-        st.divider()
+    st.divider()
 
-        if st.button(
-            "🏠 Accueil",
-            use_container_width=True,
-        ):
-            st.session_state.page = "Accueil"
-            st.rerun()
+    st.write("### 📺 Publicité")
 
-        if st.button(
-            "🆘 Help Me",
-            use_container_width=True,
-        ):
-            st.session_state.page = "Help Me"
-            st.rerun()
+    st.info(
+        "Emplacement réservé aux Rewarded Ads."
+    )
 
-        if st.button(
-            "🧠 Learn a Concept",
-            use_container_width=True,
-        ):
-            st.session_state.page = "Learn"
-            st.rerun()
+    st.divider()
 
-        if st.button(
-            "📚 Historique",
-            use_container_width=True,
-        ):
-            st.session_state.page = "Historique"
-            st.rerun()
+    st.write("### 💎 Premium")
 
-        if st.button(
-            "💎 Pro",
-            use_container_width=True,
-        ):
-            st.session_state.page = "Pro"
-            st.rerun()
-
-        st.divider()
-
-        st.markdown(
-            f"### ⚡ {st.session_state.credits} crédits"
-        )
-
-        if ADS_ENABLED:
-
-            st.markdown(
-                """
-                <div class="ad-placeholder">
-                📺 Emplacement publicité
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
-
-            if st.button(
-                "🎁 Simuler une publicité récompensée",
-                use_container_width=True,
-            ):
-
-                add_credits(
-                    REWARDED_AD_CREDIT_REWARD
-                )
-
-                st.success(
-                    f"+{REWARDED_AD_CREDIT_REWARD} crédits !"
-                )
-
-        st.divider()
-
-        st.caption(
-            "🔐 Connexion Google : préparée pour la V2"
-        )
+    st.write(
+        "Des packs de crédits plus généreux."
+    )
 
 
 # ============================================================
-# PAGE ACCUEIL
+# NAVIGATION
 # ============================================================
 
-def page_home():
+page = st.radio(
+    "Menu",
+    [
+        "🏠 Accueil",
+        "🆘 Help Me",
+        "🧠 Apprendre",
+        "📚 BEPC / BAC",
+        "💎 Premium",
+        "💾 Historique",
+        "👤 Compte",
+    ],
+)
 
-    st.markdown(
-        """
-        <div class="hintai-subtitle">
-        Ton professeur IA ne te donne pas simplement la réponse.
-        Il t'aide à trouver la méthode.
-        </div>
-        """,
-        unsafe_allow_html=True,
+
+# ============================================================
+# ACCUEIL
+# ============================================================
+
+if page == "🏠 Accueil":
+
+    st.header("Bienvenue sur HintAI 👋")
+
+    st.write(
+        "Apprends à résoudre tes exercices avec "
+        "des indices progressifs."
     )
 
-    st.markdown(
-        """
-        <div class="hintai-card">
-        <h3>🆘 Help Me</h3>
-        <p>
-        Bloqué sur un exercice ? Envoie l'énoncé,
-        ajoute ton travail si tu en as un,
-        puis avance avec des indices progressifs.
-        </p>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
+    st.divider()
+
+    st.subheader("🚀 Commencer")
 
     if st.button(
-        "🚀 Commencer Help Me",
+        "🆘 HELP ME",
         type="primary",
         use_container_width=True,
     ):
 
-        st.session_state.page = "Help Me"
+        st.session_state.open_help = True
+
         st.rerun()
 
-    st.markdown("")
+    st.write("")
 
-    st.markdown(
-        """
-        <div class="hintai-card">
-        <h3>🧠 Learn a Concept</h3>
-        <p>
-        Choisis une notion et ton niveau.
-        HintAI t'explique, te fait pratiquer,
-        puis vérifie ta compréhension.
-        </p>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
+    col1, col2 = st.columns(2)
 
-    if st.button(
-        "📖 Apprendre une notion",
-        use_container_width=True,
-    ):
+    with col1:
 
-        st.session_state.page = "Learn"
-        st.rerun()
-
-
-# ============================================================
-# PAGE HELP ME
-# ============================================================
-
-def page_help_me():
-
-    st.title("🆘 Help Me")
-
-    st.caption(
-        "Résous ton exercice avec un accompagnement progressif."
-    )
-
-    # --------------------------------------------------------
-    # ÉTAPE 1
-    # --------------------------------------------------------
-
-    st.markdown(
-        "<div class='step-box'>"
-        "<span class='step-number'>Étape 1</span>"
-        "<br>Ajoute ton exercice"
-        "</div>",
-        unsafe_allow_html=True,
-    )
-
-    subject = st.selectbox(
-        "Matière",
-        SUBJECTS,
-        key="help_subject",
-    )
-
-    level = st.selectbox(
-        "Classe",
-        CLASS_LEVELS,
-        key="help_level",
-    )
-
-    exercise_file = st.file_uploader(
-        "📷 Image ou 📄 PDF de l'exercice",
-        type=[
-            "png",
-            "jpg",
-            "jpeg",
-            "webp",
-            "pdf",
-        ],
-        key="exercise_upload",
-    )
-
-    if exercise_file is not None:
-
-        prepared = prepare_uploaded_file(
-            exercise_file
+        st.info(
+            "📷 Photo\n\n"
+            "Analyse ton exercice."
         )
 
-        if prepared[0] is not None:
+    with col2:
 
-            exercise_bytes = prepared[0]
-            exercise_mime = prepared[1]
-
-            st.session_state.exercise_bytes = (
-                exercise_bytes
-            )
-
-            st.session_state.exercise_mime = (
-                exercise_mime
-            )
-
-            st.image(
-                exercise_bytes,
-                caption="Aperçu de l'exercice",
-                use_container_width=True,
-            )
-
-            # ---------------------------------------------
-            # CONTRÔLE QUALITÉ LOCAL
-            # ---------------------------------------------
-
-            quality_ok, quality_message = (
-                quality_check_image(
-                    exercise_bytes
-                )
-            )
-
-            if quality_ok:
-
-                st.markdown(
-                    f"""
-                    <div class="quality-success">
-                    ✅ Contrôle qualité réussi<br>
-                    {quality_message}
-                    </div>
-                    """,
-                    unsafe_allow_html=True,
-                )
-
-            else:
-
-                st.markdown(
-                    f"""
-                    <div class="quality-error">
-                    ❌ Contrôle qualité échoué<br>
-                    {quality_message}
-                    </div>
-                    """,
-                    unsafe_allow_html=True,
-                )
-
-                st.session_state.exercise_bytes = None
+        st.info(
+            "🧠 Apprentissage\n\n"
+            "Maîtrise une compétence."
+        )
 
     st.divider()
 
-    # --------------------------------------------------------
-    # ÉTAPE 2
-    # --------------------------------------------------------
+    st.subheader("🎯 Notre méthode")
 
-    st.markdown(
-        "<div class='step-box'>"
-        "<span class='step-number'>Étape 2</span>"
-        "<br>Ajoute ton travail"
-        "</div>",
-        unsafe_allow_html=True,
+    st.write(
+        """
+**Pas de réponse jetée à la figure.**
+
+HintAI commence par un indice.
+
+Puis un deuxième.
+
+Puis un troisième.
+
+Et seulement ensuite une résolution complète
+si elle est nécessaire.
+
+Enfin, HintAI vérifie si tu as réellement compris.
+"""
     )
 
-    student_file = st.file_uploader(
-        "📷 Ton travail (optionnel)",
-        type=[
-            "png",
-            "jpg",
-            "jpeg",
-            "webp",
-            "pdf",
-        ],
-        key="student_upload",
+
+# ============================================================
+# HELP ME
+# ============================================================
+
+elif page == "🆘 Help Me":
+
+    st.header("🆘 Help Me")
+
+    st.progress(
+        min(
+            st.session_state.help_me_step / 5,
+            1.0
+        )
     )
 
-    if student_file is not None:
+    # ========================================================
+    # ETAPE 1
+    # ========================================================
 
-        prepared = prepare_uploaded_file(
-            student_file
+    if st.session_state.help_me_step == 1:
+
+        st.subheader("1️⃣ Ajoute ton exercice")
+
+        st.write(
+            "Prends une photo ou importe ton exercice."
         )
 
-        if prepared[0] is not None:
+        camera = st.camera_input(
+            "📷 Prendre une photo"
+        )
 
-            student_bytes = prepared[0]
-            student_mime = prepared[1]
+        upload = st.file_uploader(
+            "📁 Image ou PDF",
+            type=[
+                "png",
+                "jpg",
+                "jpeg",
+                "webp",
+                "pdf",
+            ],
+            key="exercise",
+        )
 
-            quality_ok, quality_message = (
-                quality_check_image(
-                    student_bytes
+        selected = camera or upload
+
+        if selected is not None:
+
+            st.session_state.exercise_file = selected
+
+            result = quality_check(selected)
+
+            st.session_state.exercise_quality = result
+
+            if result["valid"]:
+
+                st.success(
+                    "✅ Contrôle qualité réussi."
                 )
-            )
 
-            if quality_ok:
+                if result["type"] == "image":
 
-                st.session_state.student_bytes = (
-                    student_bytes
-                )
+                    st.image(
+                        selected,
+                        use_container_width=True,
+                    )
 
-                st.session_state.student_mime = (
-                    student_mime
-                )
-
-                st.image(
-                    student_bytes,
-                    caption="Aperçu de ton travail",
+                if st.button(
+                    "➡️ Suivant",
+                    type="primary",
                     use_container_width=True,
-                )
+                ):
 
-                st.markdown(
-                    f"""
-                    <div class="quality-success">
-                    ✅ Ton travail est lisible.
-                    </div>
-                    """,
-                    unsafe_allow_html=True,
-                )
+                    st.session_state.help_me_step = 2
+
+                    st.rerun()
 
             else:
-
-                st.markdown(
-                    f"""
-                    <div class="quality-error">
-                    ❌ {quality_message}
-                    </div>
-                    """,
-                    unsafe_allow_html=True,
-                )
-
-                st.session_state.student_bytes = None
-
-    else:
-
-        st.info(
-            "Tu peux passer cette étape si tu n'as pas encore essayé."
-        )
-
-    st.divider()
-
-    # --------------------------------------------------------
-    # LANCEMENT
-    # --------------------------------------------------------
-
-    if st.session_state.exercise_bytes is None:
-
-        st.warning(
-            "Ajoute d'abord un exercice lisible."
-        )
-
-        return
-
-    if not can_spend(HELP_ME_COST):
-
-        st.error(
-            f"Il te faut {HELP_ME_COST} crédits "
-            f"pour utiliser Help Me."
-        )
-
-        st.info(
-            "Regarde une publicité récompensée "
-            "ou passe à une formule Pro."
-        )
-
-        return
-
-    if st.button(
-        f"🚀 Lancer Help Me ({HELP_ME_COST} crédits)",
-        type="primary",
-        use_container_width=True,
-    ):
-
-        with st.spinner(
-            "HintAI analyse ton exercice..."
-        ):
-
-            try:
-
-                spend_credits(
-                    HELP_ME_COST
-                )
-
-                response = help_me_image(
-                    exercise_image=(
-                        st.session_state.exercise_bytes
-                    ),
-                    exercise_mime=(
-                        st.session_state.exercise_mime
-                    ),
-                    student_image=(
-                        st.session_state.student_bytes
-                    ),
-                    student_mime=(
-                        st.session_state.student_mime
-                    ),
-                    subject=subject,
-                    level=level,
-                )
-
-                st.session_state.subject = subject
-                st.session_state.level = level
-
-                st.session_state.current_response = (
-                    response
-                )
-
-                st.session_state.exercise_context = (
-                    f"Matière : {subject}\n"
-                    f"Niveau : {level}\n"
-                    f"Exercice fourni en image."
-                )
-
-                st.session_state.hint_level = 1
-                st.session_state.help_step = 3
-
-                add_history(
-                    "Help Me",
-                    response,
-                    "help_me",
-                )
-
-                st.success(
-                    "Indice 1 prêt !"
-                )
-
-            except Exception as error:
 
                 st.error(
-                    "Une erreur est survenue avec Gemini."
+                    "❌ " + result["message"]
                 )
 
-                st.code(
-                    str(error)
+                st.warning(
+                    "L'image n'est pas envoyée à Gemini."
                 )
 
-    # --------------------------------------------------------
-    # RÉPONSE
-    # --------------------------------------------------------
 
-    if st.session_state.current_response:
+    # ========================================================
+    # ETAPE 2
+    # ========================================================
 
-        st.divider()
+    elif st.session_state.help_me_step == 2:
 
-        st.markdown(
-            """
-            <div class="hint-box">
-            <div class="hint-title">
-            💡 Indice / accompagnement
-            </div>
-            </div>
-            """,
-            unsafe_allow_html=True,
+        st.subheader("2️⃣ Ton travail")
+
+        st.write(
+            "Ajoute ton brouillon si tu en as un."
         )
 
-        st.markdown(
-            st.session_state.current_response
+        camera = st.camera_input(
+            "📷 Photographier mon travail",
+            key="work_camera",
         )
 
-        st.divider()
+        upload = st.file_uploader(
+            "📁 Importer mon travail",
+            type=[
+                "png",
+                "jpg",
+                "jpeg",
+                "webp",
+                "pdf",
+            ],
+            key="work",
+        )
 
-        st.markdown("### Que veux-tu faire ?")
+        selected = camera or upload
 
-        col1, col2, col3 = st.columns(3)
+        if selected is not None:
+
+            result = quality_check(selected)
+
+            st.session_state.work_quality = result
+
+            if result["valid"]:
+
+                st.session_state.work_file = selected
+
+                st.success(
+                    "✅ Travail accepté."
+                )
+
+                if result["type"] == "image":
+
+                    st.image(
+                        selected,
+                        use_container_width=True,
+                    )
+
+            else:
+
+                st.error(
+                    "❌ " + result["message"]
+                )
+
+        col1, col2 = st.columns(2)
 
         with col1:
 
             if st.button(
-                "💬 Poser une question",
+                "⏭️ Passer",
                 use_container_width=True,
             ):
 
-                st.session_state.help_action = (
-                    "question"
-                )
+                st.session_state.work_file = None
+
+                st.session_state.help_me_step = 3
+
+                st.rerun()
 
         with col2:
 
             if st.button(
-                "➡️ Indice suivant",
+                "➡️ Suivant",
+                type="primary",
                 use_container_width=True,
             ):
 
-                if st.session_state.hint_level < 3:
+                st.session_state.help_me_step = 3
 
-                    if not can_spend(
-                        EXTRA_QUESTION_COST
-                    ):
+                st.rerun()
 
-                        st.error(
-                            "Pas assez de crédits."
-                        )
 
-                    else:
+    # ========================================================
+    # ETAPE 3
+    # ========================================================
 
-                        spend_credits(
-                            EXTRA_QUESTION_COST
-                        )
+    elif st.session_state.help_me_step == 3:
 
-                        with st.spinner(
-                            "Préparation de l'indice..."
-                        ):
+        st.subheader("3️⃣ Analyse")
 
-                            try:
-
-                                st.session_state.hint_level += 1
-
-                                response = next_hint(
-                                    exercise_context=(
-                                        st.session_state.exercise_context
-                                    ),
-                                    previous_response=(
-                                        st.session_state.current_response
-                                    ),
-                                    hint_level=(
-                                        st.session_state.hint_level
-                                    ),
-                                )
-
-                                st.session_state.current_response = (
-                                    response
-                                )
-
-                                add_history(
-                                    f"Indice {st.session_state.hint_level}",
-                                    response,
-                                    "hint",
-                                )
-
-                                st.rerun()
-
-                            except Exception as error:
-
-                                st.error(
-                                    "Erreur Gemini."
-                                )
-
-                                st.code(
-                                    str(error)
-                                )
-
-                else:
-
-                    st.session_state.hint_level = 4
-
-                    with st.spinner(
-                        "Préparation de la résolution..."
-                    ):
-
-                        try:
-
-                            response = next_hint(
-                                exercise_context=(
-                                    st.session_state.exercise_context
-                                ),
-                                previous_response=(
-                                    st.session_state.current_response
-                                ),
-                                hint_level=4,
-                            )
-
-                            st.session_state.current_response = (
-                                response
-                            )
-
-                            add_history(
-                                "Résolution complète",
-                                response,
-                                "solution",
-                            )
-
-                            st.rerun()
-
-                        except Exception as error:
-
-                            st.error(
-                                "Erreur Gemini."
-                            )
-
-                            st.code(
-                                str(error)
-                            )
-
-        with col3:
-
-            if st.button(
-                "✅ Valider",
-                use_container_width=True,
-            ):
-
-                st.session_state.help_action = (
-                    "validate"
-                )
-
-        # ----------------------------------------------------
-        # QUESTION
-        # ----------------------------------------------------
-
-        if st.session_state.get(
-            "help_action"
-        ) == "question":
-
-            question = st.text_area(
-                "Ta question",
-                placeholder=(
-                    "Exemple : "
-                    "je ne comprends pas pourquoi..."
-                ),
-            )
-
-            if st.button(
-                "Envoyer ma question",
-                type="primary",
-            ):
-
-                if not can_spend(
-                    EXTRA_QUESTION_COST
-                ):
-
-                    st.error(
-                        "Pas assez de crédits."
-                    )
-
-                else:
-
-                    spend_credits(
-                        EXTRA_QUESTION_COST
-                    )
-
-                    with st.spinner(
-                        "HintAI réfléchit..."
-                    ):
-
-                        try:
-
-                            answer = (
-                                ask_student_question(
-                                    st.session_state.exercise_context,
-                                    question,
-                                )
-                            )
-
-                            st.session_state.current_response = (
-                                answer
-                            )
-
-                            add_history(
-                                "Question",
-                                answer,
-                                "question",
-                            )
-
-                            st.session_state.help_action = (
-                                None
-                            )
-
-                            st.rerun()
-
-                        except Exception as error:
-
-                            st.error(
-                                "Erreur Gemini."
-                            )
-
-                            st.code(
-                                str(error)
-                            )
-
-        # ----------------------------------------------------
-        # VALIDATION
-        # ----------------------------------------------------
-
-        if st.session_state.get(
-            "help_action"
-        ) == "validate":
-
-            st.markdown(
-                "### 🎯 Validation de ta compétence"
-            )
-
-            answer = st.text_area(
-                "Écris ta réponse ou ta démarche",
-                placeholder=(
-                    "Écris ici ce que tu as trouvé..."
-                ),
-            )
-
-            if st.button(
-                "🎯 Évaluer ma compétence",
-                type="primary",
-            ):
-
-                if not answer.strip():
-
-                    st.warning(
-                        "Écris d'abord ta démarche."
-                    )
-
-                else:
-
-                    with st.spinner(
-                        "Évaluation..."
-                    ):
-
-                        try:
-
-                            result = validate_skill(
-                                exercise_context=(
-                                    st.session_state.exercise_context
-                                ),
-                                student_answer=answer,
-                                subject=(
-                                    st.session_state.subject
-                                ),
-                                level=(
-                                    st.session_state.level
-                                ),
-                            )
-
-                            st.markdown(
-                                result
-                            )
-
-                            add_history(
-                                "Validation",
-                                result,
-                                "validation",
-                            )
-
-                        except Exception as error:
-
-                            st.error(
-                                "Erreur Gemini."
-                            )
-
-                            st.code(
-                                str(error)
-                            )
-
-
-# ============================================================
-# PAGE LEARN
-# ============================================================
-
-def page_learn():
-
-    st.title("🧠 Learn a Concept")
-
-    st.write(
-        "Choisis une notion et laisse HintAI "
-        "t'accompagner comme un professeur."
-    )
-
-    concept = st.text_input(
-        "Concept à apprendre",
-        placeholder=(
-            "Exemple : équations du second degré"
-        ),
-    )
-
-    subject = st.selectbox(
-        "Matière",
-        SUBJECTS,
-        key="learn_subject",
-    )
-
-    level = st.selectbox(
-        "Classe",
-        CLASS_LEVELS,
-        key="learn_level",
-    )
-
-    st.markdown(
-        """
-        <div class="hintai-card">
-        📎 Tu pourras ajouter des exercices
-        et ton travail dans une évolution future
-        de cette V1.
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-    if not can_spend(
-        LEARN_CONCEPT_COST
-    ):
-
-        st.error(
-            "Pas assez de crédits."
+        st.info(
+            "L'image validée va maintenant être envoyée "
+            "à Gemini."
         )
 
-        return
+        student_class = st.selectbox(
+            "Ta classe",
+            [
+                "3ème",
+                "Seconde",
+                "Première",
+                "Terminale",
+                "Autre",
+            ],
+        )
+
+        if st.button(
+            "🔎 Analyser",
+            type="primary",
+            use_container_width=True,
+        ):
+
+            if not spend_credits(
+                CREDIT_COSTS["help_me"]
+            ):
+
+                st.error(
+                    "❌ Tu n'as plus assez de crédits."
+                )
+
+                st.info(
+                    "Gagne des crédits avec les "
+                    "récompenses ou passe en Premium."
+                )
+
+            else:
+
+                with st.spinner(
+                    "🧠 HintAI analyse ton exercice..."
+                ):
+
+                    try:
+
+                        result = analyze_exercise(
+                            st.session_state.exercise_file,
+                            st.session_state.work_file,
+                            student_class,
+                        )
+
+                        st.session_state.analysis = result
+
+                        st.session_state.help_me_step = 4
+
+                        save_history({
+                            "date": str(date.today()),
+                            "type": "Help Me",
+                            "analysis": result,
+                        })
+
+                        st.rerun()
+
+                    except Exception as e:
+
+                        add_credits(
+                            CREDIT_COSTS["help_me"]
+                        )
+
+                        st.error(
+                            f"❌ Erreur : {e}"
+                        )
+
+
+    # ========================================================
+    # ETAPE 4 : INDICES
+    # ========================================================
+
+    elif st.session_state.help_me_step == 4:
+
+        st.subheader("💡 Ton accompagnement")
+
+        st.success(
+            "HintAI a analysé ton exercice."
+        )
+
+        st.write(
+            st.session_state.analysis
+        )
+
+        st.divider()
+
+        st.subheader("💡 Indice 1")
+
+        st.info(
+            "Commence par identifier la notion "
+            "ou la formule nécessaire."
+        )
+
+        col1, col2 = st.columns(2)
+
+        with col1:
+
+            if st.button(
+                "❓ Je veux poser une question",
+                use_container_width=True,
+            ):
+
+                st.session_state.help_me_step = 5
+
+                st.rerun()
+
+        with col2:
+
+            if st.button(
+                "➡️ Indice 2",
+                type="primary",
+                use_container_width=True,
+            ):
+
+                st.session_state.help_me_step = 6
+
+                st.rerun()
+
+
+    # ========================================================
+    # ETAPE 5 : QUESTION
+    # ========================================================
+
+    elif st.session_state.help_me_step == 5:
+
+        st.subheader("❓ Pose ta question")
+
+        question = st.text_area(
+            "Qu'est-ce qui te bloque ?",
+            placeholder=(
+                "Exemple : je ne comprends pas "
+                "quelle formule utiliser."
+            ),
+        )
+
+        if st.button(
+            "💬 Demander à HintAI",
+            type="primary",
+            use_container_width=True,
+        ):
+
+            if not can_ask_question():
+
+                st.error(
+                    "Tu as atteint ta limite quotidienne."
+                )
+
+            else:
+
+                answer = ask_student_question(
+                    st.session_state.analysis,
+                    question,
+                )
+
+                register_question()
+
+                st.session_state.questions.append({
+                    "question": question,
+                    "answer": answer,
+                })
+
+                st.write(answer)
+
+        st.divider()
+
+        if st.button(
+            "➡️ Continuer vers l'indice 2",
+            use_container_width=True,
+        ):
+
+            st.session_state.help_me_step = 6
+
+            st.rerun()
+
+
+    # ========================================================
+    # INDICE 2
+    # ========================================================
+
+    elif st.session_state.help_me_step == 6:
+
+        st.subheader("💡 Indice 2")
+
+        st.info(
+            "Maintenant, précise la méthode : "
+            "quelle formule, propriété ou transformation "
+            "peut te permettre d'avancer ?"
+        )
+
+        if st.button(
+            "➡️ Indice 3",
+            type="primary",
+            use_container_width=True,
+        ):
+
+            st.session_state.help_me_step = 7
+
+            st.rerun()
+
+
+    # ========================================================
+    # INDICE 3
+    # ========================================================
+
+    elif st.session_state.help_me_step == 7:
+
+        st.subheader("💡 Indice 3")
+
+        st.warning(
+            "Tu as maintenant une piste très précise."
+        )
+
+        st.write(
+            "Effectue l'étape indiquée et vérifie "
+            "ton résultat."
+        )
+
+        if st.button(
+            "🧾 Voir la résolution",
+            type="primary",
+            use_container_width=True,
+        ):
+
+            st.session_state.help_me_step = 8
+
+            st.rerun()
+
+
+    # ========================================================
+    # RESOLUTION
+    # ========================================================
+
+    elif st.session_state.help_me_step == 8:
+
+        st.subheader("🧾 Résolution")
+
+        resolution = ask_student_question(
+            st.session_state.analysis,
+            """
+Maintenant donne la résolution complète de
+l'exercice.
+
+Explique chaque étape.
+
+Montre pourquoi chaque formule ou méthode
+est utilisée.
+
+Termine par le résultat.
+
+Ajoute une section :
+"Ce qu'il faut retenir".
+""",
+        )
+
+        st.write(resolution)
+
+        st.session_state.resolution = resolution
+
+        if st.button(
+            "🎓 Passer à l'évaluation",
+            type="primary",
+            use_container_width=True,
+        ):
+
+            st.session_state.help_me_step = 9
+
+            st.rerun()
+
+
+    # ========================================================
+    # EVALUATION
+    # ========================================================
+
+    elif st.session_state.help_me_step == 9:
+
+        st.subheader("🎓 Validation de compétence")
+
+        st.write(
+            "Dernière étape : vérifier que tu sais "
+            "maintenant refaire la méthode."
+        )
+
+        evaluation = st.text_area(
+            "Explique avec tes mots comment résoudre "
+            "ce type d'exercice."
+        )
+
+        if st.button(
+            "✅ Vérifier ma compréhension",
+            type="primary",
+            use_container_width=True,
+        ):
+
+            if not spend_credits(
+                CREDIT_COSTS["evaluation"]
+            ):
+
+                st.error(
+                    "Pas assez de crédits."
+                )
+
+            else:
+
+                result = ask_student_question(
+                    st.session_state.analysis,
+                    f"""
+Évalue cette explication de l'élève :
+
+{evaluation}
+
+Dis :
+
+1. compétence maîtrisée ou non
+2. erreur éventuelle
+3. conseil
+4. niveau de maîtrise
+5. ce que l'élève doit retravailler
+""",
+                )
+
+                st.session_state.evaluation = result
+
+                st.success(
+                    "🎯 Évaluation terminée."
+                )
+
+                st.write(result)
+
+                if st.button(
+                    "🏠 Nouvel exercice"
+                ):
+
+                    st.session_state.help_me_step = 1
+                    st.session_state.exercise_file = None
+                    st.session_state.work_file = None
+                    st.rerun()
+
+
+# ============================================================
+# APPRENDRE
+# ============================================================
+
+elif page == "🧠 Apprendre":
+
+    st.header("🧠 Apprendre un concept")
+
+    concept = st.text_input(
+        "Quel concept veux-tu apprendre ?",
+        placeholder="Ex : dérivées",
+    )
+
+    student_class = st.selectbox(
+        "Ta classe",
+        [
+            "6ème",
+            "5ème",
+            "4ème",
+            "3ème",
+            "Seconde",
+            "Première",
+            "Terminale",
+        ],
+    )
+
+    st.write(
+        "### 📚 Tes exercices personnels"
+    )
+
+    files = st.file_uploader(
+        "Jusqu'à 3 exercices (optionnel)",
+        type=[
+            "png",
+            "jpg",
+            "jpeg",
+            "webp",
+            "pdf",
+        ],
+        accept_multiple_files=True,
+    )
+
+    if len(files) > 3:
+
+        st.warning(
+            "Maximum 3 exercices."
+        )
+
+        files = files[:3]
+
+    work = st.file_uploader(
+        "Ton travail (optionnel)",
+        type=[
+            "png",
+            "jpg",
+            "jpeg",
+            "webp",
+            "pdf",
+        ],
+        key="concept_work",
+    )
 
     if st.button(
-        f"🚀 Commencer ({LEARN_CONCEPT_COST} crédits)",
+        "🚀 Apprendre",
         type="primary",
         use_container_width=True,
     ):
@@ -1227,210 +779,189 @@ def page_learn():
         if not concept.strip():
 
             st.warning(
-                "Entre d'abord une notion."
+                "Entre un concept."
             )
 
-            return
-
-        spend_credits(
-            LEARN_CONCEPT_COST
-        )
-
-        with st.spinner(
-            "Préparation du cours..."
+        elif not spend_credits(
+            CREDIT_COSTS["concept"]
         ):
 
-            try:
+            st.error(
+                "Pas assez de crédits."
+            )
 
-                response = learn_concept(
-                    concept=concept,
-                    level=level,
-                    subject=subject,
-                )
+        else:
 
-                st.markdown(
-                    response
-                )
+            with st.spinner(
+                "🧠 Préparation de ton parcours..."
+            ):
 
-                add_history(
-                    concept,
-                    response,
-                    "learn",
-                )
+                try:
 
-            except Exception as error:
+                    result = learn_concept(
+                        concept,
+                        student_class,
+                    )
 
-                st.error(
-                    "Erreur Gemini."
-                )
+                    st.subheader(
+                        "📚 Ton parcours"
+                    )
 
-                st.code(
-                    str(error)
-                )
+                    st.write(result)
+
+                except Exception as e:
+
+                    add_credits(
+                        CREDIT_COSTS["concept"]
+                    )
+
+                    st.error(
+                        f"Erreur : {e}"
+                    )
+
+
+# ============================================================
+# BEPC / BAC
+# ============================================================
+
+elif page == "📚 BEPC / BAC":
+
+    st.header("📚 Bibliothèque BEPC & BAC")
+
+    st.info(
+        "La bibliothèque de fichiers sera branchée "
+        "sur notre stockage dans l'étape suivante."
+    )
+
+    st.subheader("🆓 Gratuit")
+
+    st.write(
+        "Épreuves gratuites avec publicité."
+    )
+
+    st.subheader("💎 Premium")
+
+    st.write(
+        "Épreuves premium accessibles avec crédits."
+    )
+
+    st.write(
+        "📐 Maths   •   ⚡ Physique   •   🧪 Chimie"
+    )
+
+
+# ============================================================
+# PREMIUM
+# ============================================================
+
+elif page == "💎 Premium":
+
+    st.header("💎 Premium")
+
+    st.write(
+        "Choisis ton pack."
+    )
+
+    for name, package in PREMIUM_PACKAGES.items():
+
+        if name == "30$":
+
+            st.subheader(
+                "🔥 Offre spéciale 30$"
+            )
+
+            st.write(
+                "2 Help Me complets"
+            )
+
+            st.write(
+                "3 indices + résolution"
+            )
+
+            st.write(
+                "5 questions avec validation par jour"
+            )
+
+        else:
+
+            st.subheader(
+                f"💳 Pack {name}"
+            )
+
+            st.write(
+                f"{package['credits']} crédits"
+            )
+
+        if st.button(
+            f"Choisir {name}",
+            key=f"premium_{name}",
+            use_container_width=True,
+        ):
+
+            st.info(
+                "💳 Paiement à connecter."
+            )
 
 
 # ============================================================
 # HISTORIQUE
 # ============================================================
 
-def page_history():
+elif page == "💾 Historique":
 
-    st.title("📚 Mon historique")
+    st.header("💾 Mon historique")
 
-    if not st.session_state.history:
+    history = get_history()
+
+    if not history:
 
         st.info(
-            "Ton historique est encore vide."
+            "Aucun exercice enregistré."
         )
-
-        return
-
-    history_download_button()
-
-    st.divider()
-
-    for item in st.session_state.history:
-
-        with st.expander(
-            f"{item['title']} • {item['date']}"
-        ):
-
-            st.caption(
-                f"Mode : {item['mode']}"
-            )
-
-            st.markdown(
-                item["content"]
-            )
-
-
-# ============================================================
-# PAGE PRO
-# ============================================================
-
-def page_pro():
-
-    st.title("💎 HintAI Pro")
-
-    st.write(
-        "Plus de crédits pour apprendre davantage."
-    )
-
-    for plan_name, plan_data in PLANS.items():
-
-        if plan_name == "Free":
-            continue
-
-        st.markdown(
-            f"""
-            <div class="pro-card">
-                <h3>💎 {plan_name}</h3>
-                <div class="pro-price">
-                    ${plan_data['price']}
-                </div>
-                <p>
-                    {plan_data['credits']} crédits
-                </p>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-
-        if st.button(
-            f"Choisir {plan_name}",
-            key=f"plan_{plan_name}",
-            use_container_width=True,
-        ):
-
-            st.info(
-                "Paiement à connecter dans la prochaine phase."
-            )
-
-    st.divider()
-
-    st.markdown(
-        """
-        ### 🔐 Compte
-
-        Connexion Google prévue pour la version
-        avec authentification complète.
-
-        ### 📺 Publicités
-
-        Les utilisateurs Free pourront gagner
-        des crédits grâce aux publicités récompensées.
-        """,
-    )
-
-
-# ============================================================
-# PAGE ERREURS CONFIG
-# ============================================================
-
-def config_error_page(errors):
-
-    st.error(
-        "⚠️ Configuration HintAI incomplète"
-    )
-
-    for error in errors:
-
-        st.warning(error)
-
-    st.info(
-        "Vérifie les Secrets Streamlit."
-    )
-
-
-# ============================================================
-# ROUTEUR PRINCIPAL
-# ============================================================
-
-errors = validate_config()
-
-if errors:
-
-    config_error_page(errors)
-
-else:
-
-    render_header()
-    render_sidebar()
-
-    if st.session_state.page == "Accueil":
-
-        page_home()
-
-    elif st.session_state.page == "Help Me":
-
-        page_help_me()
-
-    elif st.session_state.page == "Learn":
-
-        page_learn()
-
-    elif st.session_state.page == "Historique":
-
-        page_history()
-
-    elif st.session_state.page == "Pro":
-
-        page_pro()
 
     else:
 
-        st.session_state.page = "Accueil"
+        for index, item in enumerate(
+            reversed(history),
+            1,
+        ):
 
-        page_home()
+            with st.expander(
+                f"Exercice {index} • {item['date']}"
+            ):
+
+                st.write(
+                    item.get("analysis", "")
+                )
 
 
 # ============================================================
-# FOOTER
+# COMPTE
 # ============================================================
 
-st.divider()
+elif page == "👤 Compte":
 
-st.caption(
-    f"HintAI {APP_VERSION} • "
-    f"Gemini {GEMINI_MODEL}"
-)
+    st.header("👤 Mon compte")
+
+    st.write(
+        "### Connexion Google"
+    )
+
+    st.info(
+        "L'authentification Google sera activée "
+        "avec les paramètres OAuth/OIDC de "
+        "Streamlit Community Cloud."
+    )
+
+    st.write(
+        f"💳 Crédits : {get_credits()}"
+    )
+
+    st.write(
+        f"🔥 Série : {st.session_state.streak} jours"
+    )
+
+    st.write(
+        f"💎 Premium : "
+        f"{'Oui' if st.session_state.is_premium else 'Non'}"
+    )

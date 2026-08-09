@@ -1,220 +1,134 @@
-import streamlit as st
+import os
 
 
 # ============================================================
-# HINTAI - CONFIGURATION V1
-# ============================================================
-
-# -----------------------------
 # GEMINI
-# -----------------------------
+# ============================================================
 
-GEMINI_MODEL = "gemini-2.5-flash-lite"
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 
-try:
-    GEMINI_API_KEY = st.secrets["GEMINI_API_KEY"]
-except Exception:
-    GEMINI_API_KEY = ""
+# Gemini 2.5 Flash-Lite étant refusé pour ta clé actuelle,
+# on utilise le modèle de remplacement.
+GEMINI_MODEL = "gemini-3.1-flash-lite"
 
 
-# -----------------------------
-# APPLICATION
-# -----------------------------
+# ============================================================
+# HINTAI
+# ============================================================
 
 APP_NAME = "HintAI"
-APP_VERSION = "1.0.0"
+
+FREE_MONTHLY_CREDITS = 30
 
 
-# -----------------------------
-# CREDITS
-# -----------------------------
+# ============================================================
+# OFFRES
+# ============================================================
 
-FREE_INITIAL_CREDITS = 30
-
-# Coût des principales actions
-HELP_ME_COST = 10
-LEARN_CONCEPT_COST = 8
-EXTRA_QUESTION_COST = 1
-
-
-# -----------------------------
-# LIMITES
-# -----------------------------
-
-# Protection supplémentaire contre
-# les utilisations accidentelles.
-MAX_IMAGE_SIZE_MB = 10
-
-MAX_HISTORY_ITEMS = 50
-
-
-# -----------------------------
-# MATIÈRES
-# -----------------------------
-
-SUBJECTS = [
-    "Mathématiques",
-    "Physique",
-    "Chimie",
-]
-
-
-# -----------------------------
-# NIVEAUX
-# -----------------------------
-
-CLASS_LEVELS = [
-    "6ème",
-    "5ème",
-    "4ème",
-    "3ème",
-    "Seconde",
-    "Première",
-    "Terminale",
-]
-
-
-# -----------------------------
-# FORMULES
-# -----------------------------
-
-PLANS = {
-    "Free": {
-        "credits": 30,
-        "ads": True,
-    },
-
-    "Pro 200": {
-        "credits": 200,
+PREMIUM_PACKAGES = {
+    "5$": {
         "price": 5,
-        "ads": False,
+        "credits": 200,
     },
-
-    "Pro 400": {
-        "credits": 400,
+    "10$": {
         "price": 10,
-        "ads": False,
+        "credits": 400,
     },
-
-    "Pro 700": {
-        "credits": 700,
+    "15$": {
         "price": 15,
-        "ads": False,
+        "credits": 700,
+    },
+    "30$": {
+        "price": 30,
+        "help_me": 2,
+        "questions_per_day": 5,
     },
 }
 
 
-# -----------------------------
-# PUBLICITÉ
-# -----------------------------
+# ============================================================
+# COUTS EN CREDITS
+# ============================================================
 
-ADS_ENABLED = True
+CREDIT_COSTS = {
+    "help_me": 5,
+    "question": 1,
+    "evaluation": 3,
+    "concept": 3,
+    "paper": 3,
+}
 
-REWARDED_AD_CREDIT_REWARD = 3
+
+# ============================================================
+# GAMIFICATION
+# ============================================================
+
+DAILY_LOGIN_REWARDS = {
+    1: 0,
+    2: 2,
+    3: 3,
+    4: 4,
+    5: 5,
+    6: 6,
+    7: 10,
+}
 
 
-# -----------------------------
-# PROMPT PÉDAGOGIQUE
-# -----------------------------
+# ============================================================
+# AUTHENTIFICATION
+# ============================================================
 
-SYSTEM_PROMPT = """
+GOOGLE_AUTH_ENABLED = True
+
+
+# ============================================================
+# CONTEXT CACHE
+# ============================================================
+
+CACHE_ENABLED = True
+
+HINTAI_SYSTEM_CONTEXT = """
 Tu es HintAI, un professeur particulier spécialisé
-dans l'accompagnement scolaire.
+dans l'accompagnement pédagogique des élèves.
 
 Matières principales :
 - Mathématiques
 - Physique
 - Chimie
 
-Ton objectif n'est PAS de donner immédiatement la réponse.
+REGLE PEDAGOGIQUE FONDAMENTALE :
 
-Tu dois aider l'élève à développer une compétence.
+Tu ne dois pas donner immédiatement la réponse finale.
 
-RÈGLES PÉDAGOGIQUES :
+Ton objectif est de faire progresser l'élève vers
+une compétence réelle.
 
-1. Commence par comprendre l'exercice.
+Utilise progressivement :
 
-2. Analyse le travail de l'élève lorsqu'il en fournit un.
+1. observation
+2. question
+3. indice 1
+4. indice 2
+5. indice 3
+6. démarche guidée
+7. résolution complète uniquement si nécessaire
+8. vérification de compréhension
+9. exercice de validation
 
-3. Ne donne jamais directement la solution au premier message.
+Tu dois adapter ton explication au niveau scolaire
+de l'élève.
 
-4. Commence par un indice progressif.
+Si l'élève se trompe, explique pourquoi sans le
+décourager.
 
-5. L'indice 1 doit être léger et pousser l'élève
-   à réfléchir.
+Si l'élève demande directement la réponse,
+continue d'abord par une aide pédagogique,
+sauf lorsqu'une résolution complète est explicitement
+autorisée par le parcours HintAI.
 
-6. Si l'élève demande de l'aide supplémentaire,
-   donne un indice plus précis.
+Les figures, tableaux, schémas et écritures
+mathématiques présents dans les images doivent être
+pris en compte.
 
-7. L'indice 3 peut être beaucoup plus guidé,
-   mais évite encore de faire tout le raisonnement
-   à la place de l'élève.
-
-8. La résolution complète n'est donnée que lorsque
-   l'élève demande la résolution ou lorsqu'il est
-   arrivé au dernier niveau d'aide.
-
-9. Explique les erreurs présentes dans le travail
-   de l'élève sans le rabaisser.
-
-10. Après la résolution, évalue la compétence.
-
-11. Donne une meilleure méthode lorsque cela est utile.
-
-12. Propose éventuellement un petit exercice
-    de validation.
-
-13. Adapte toujours les explications au niveau scolaire
-    indiqué par l'élève.
-
-14. Utilise un français clair, naturel et pédagogique.
-
-15. Ne prétends jamais avoir lu une information
-    qui n'est pas présente dans l'image ou le texte.
-
-16. Si une image est illisible ou incomplète,
-    demande une nouvelle photo.
-
-FORMAT DE RÉPONSE :
-
-Pour Help Me, structure la réponse avec :
-
-- compréhension de l'exercice
-- indice actuel
-- question à l'élève
-- prochaine action possible
-
-Pour une correction finale :
-
-- démarche
-- erreurs éventuelles
-- résolution
-- meilleure méthode
-- compétence évaluée
-- conseil de progression
+Réponds en français.
 """
-
-
-# -----------------------------
-# VALIDATION
-# -----------------------------
-
-def validate_config():
-    """
-    Vérifie que la configuration minimale
-    de HintAI est correcte.
-    """
-
-    errors = []
-
-    if not GEMINI_API_KEY:
-        errors.append(
-            "GEMINI_API_KEY n'est pas configurée."
-        )
-
-    if not GEMINI_MODEL:
-        errors.append(
-            "Le modèle Gemini n'est pas configuré."
-        )
-
-    return errors
