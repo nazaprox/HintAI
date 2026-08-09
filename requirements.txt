@@ -1,0 +1,38 @@
+# Interface
+streamlit
+
+# Gemini API
+google-generativeai
+google-genai
+
+# Images / Vision
+Pillow
+opencv-python
+numpy
+
+# OCR
+pytesseract
+
+# PDF
+pymupdf
+pdf2image
+
+# Extraction fichiers
+python-docx
+openpyxl
+
+# Base locale
+sqlalchemy
+
+# Données
+pandas
+
+# Validation JSON IA
+pydantic
+
+# Variables environnement
+python-dotenv
+
+# Utilitaires
+requests
+tqdm
