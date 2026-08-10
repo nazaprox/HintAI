@@ -1,279 +1,254 @@
 """
-HintAI - FastAPI Backend
-Compatible Vercel
-
-Entrypoint:
-    api/index.py
-
-Architecture:
-    ai.py
-    config.py
-    storage.py
-    user.py
+HintAI - AI Engine
+Gemini backend
 """
 
-from fastapi import (
-    FastAPI,
-    Request,
-    UploadFile,
-    File,
-    HTTPException,
-)
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import (
-    StreamingResponse,
-    JSONResponse,
-)
-from pydantic import BaseModel
-from typing import Optional
-import json
-import uuid
-import time
+
 import os
 
+from google import genai
+from google.genai import types
+
 
 # =====================================================
-# APPLICATION
+# CONFIG GEMINI
 # =====================================================
 
-app = FastAPI(
-    title="HintAI",
-    version="1.0.0"
+
+API_KEY = os.getenv(
+    "GEMINI_API_KEY"
 )
 
 
-# =====================================================
-# CORS
-# =====================================================
+if not API_KEY:
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=[
-        "*"
-    ],
-    allow_headers=[
-        "*"
-    ],
-)
-
-
-# =====================================================
-# CONFIG
-# =====================================================
-
-APP_NAME = "HintAI"
-
-ENVIRONMENT = os.getenv(
-    "VERCEL_ENV",
-    "development"
-)
-
-
-# =====================================================
-# MODELES
-# =====================================================
-
-class HelpRequest(BaseModel):
-
-    inputType: str
-
-    text: Optional[str] = None
-
-    fileId: Optional[str] = None
-
-    directSolution: bool = False
-
-
-
-class QuestionRequest(BaseModel):
-
-    responseId: str
-
-    question: str
-
-
-
-class ConceptRequest(BaseModel):
-
-    concept: str
-
-    explanation: Optional[str] = ""
-
-    exercises: list = []
-
-
-
-class ResponseRequest(BaseModel):
-
-    responseId: str
-
-
-
-# =====================================================
-# STREAM SSE
-# =====================================================
-
-def stream_answer(
-    response_id: str,
-    message: str
-):
-
-    yield (
-        "event: start\n"
-        f"data: {json.dumps({'id': response_id})}\n\n"
+    raise RuntimeError(
+        "GEMINI_API_KEY manquante"
     )
 
 
-    words = message.split()
+
+client = genai.Client(
+    api_key=API_KEY
+)
 
 
-    for word in words:
 
-        yield (
-            "event: token\n"
-            f"data: {json.dumps({'text': word + ' '})}\n\n"
-        )
+MODEL = "gemini-3.1-flash-lite"
 
-        time.sleep(
-            0.03
+
+
+
+
+# =====================================================
+# GENERATION GENERALE
+# =====================================================
+
+
+async def ask_ai(prompt: str):
+
+
+    try:
+
+
+        response = client.models.generate_content(
+
+            model=MODEL,
+
+            contents=prompt,
+
+            config=types.GenerateContentConfig(
+
+                temperature=0.4,
+
+                max_output_tokens=2048
+
+            )
+
         )
 
 
-    yield (
-        "event: complete\n"
-        f"data: {json.dumps({'responseId': response_id})}\n\n"
-    )
+
+        return response.text
 
 
 
-def sse_response(
-    response_id,
-    text
-):
-
-    return StreamingResponse(
-        stream_answer(
-            response_id,
-            text
-        ),
-        media_type="text/event-stream"
-    )
+    except Exception as error:
 
 
-# =====================================================
-# ROOT
-# =====================================================
+        return (
 
-@app.get("/")
-def root():
+            "Erreur IA : "
 
-    return {
-        "service": APP_NAME,
-        "status": "online",
-        "environment": ENVIRONMENT
-    }
+            + str(error)
 
-
-
-@app.get("/api/health")
-def health():
-
-    return {
-        "status": "ok",
-        "service": APP_NAME
-    }
-
-
-
-# =====================================================
-# HELP ME
-# =====================================================
-
-@app.post(
-    "/api/help-me/start"
-)
-def help_me_start(
-    data: HelpRequest
-):
-
-    if data.inputType not in [
-        "text",
-        "image",
-        "pdf"
-    ]:
-
-        raise HTTPException(
-            400,
-            "Invalid input type"
         )
 
 
-    response_id = str(
-        uuid.uuid4()
-    )
-
-
-    return sse_response(
-        response_id,
-        "Je vais analyser ton exercice étape par étape."
-    )
 
 
 
-@app.post(
-    "/api/help-me/hint/{level}"
-)
-def help_hint(
-    level: int,
-    data: ResponseRequest
+
+
+# =====================================================
+# HELP ME - ANALYSE
+# =====================================================
+
+
+async def analyze_exercise(
+    text: str
 ):
 
-    if level not in [
-        1,
-        2,
-        3
-    ]:
 
-        raise HTTPException(
-            400,
-            "Invalid hint level"
-        )
+    prompt = f"""
+
+Tu es HintAI, un professeur IA.
+
+Analyse cet exercice :
+
+{text}
 
 
-    return sse_response(
-        data.responseId,
-        f"Voici un indice niveau {level}."
+Consignes :
+
+- Ne donne pas directement la réponse au début.
+- Explique la méthode.
+- Découpe en étapes simples.
+- Adapte l'explication au niveau étudiant.
+
+
+Réponse :
+
+"""
+
+
+    return await ask_ai(
+        prompt
     )
 
 
 
-@app.post(
-    "/api/help-me/question"
-)
-def help_question(
-    data: QuestionRequest
+
+
+
+
+# =====================================================
+# INDICES
+# =====================================================
+
+
+async def generate_hint(
+
+    response_id:str,
+
+    level:int
+
 ):
 
-    return sse_response(
-        data.responseId,
-        "Je réponds à ta question."
+
+    prompt = f"""
+
+Tu es HintAI.
+
+Donne un indice de niveau {level}.
+
+Niveau 1 :
+petit rappel.
+
+Niveau 2 :
+orientation plus précise.
+
+Niveau 3 :
+presque la solution mais sans tout donner.
+
+
+Référence exercice :
+{response_id}
+
+"""
+
+
+    return await ask_ai(
+        prompt
     )
 
 
 
-@app.post(
-    "/api/help-me/solution"
-)
-def help_solution(
-    data: ResponseRequest
+
+
+
+
+# =====================================================
+# SOLUTION COMPLETE
+# =====================================================
+
+
+async def generate_solution(
+
+    response_id:str
+
 ):
 
-    return sse_response(
-        data.responseId,
-        "Voici la résolution complète."
+
+    prompt = f"""
+
+Tu es HintAI.
+
+Donne une résolution complète :
+
+- étapes détaillées
+- calculs
+- explication finale
+
+
+Exercice ID :
+
+{response_id}
+
+"""
+
+
+    return await ask_ai(
+        prompt
     )
+
+
+
+
+
+
+
+# =====================================================
+# QUESTION
+# =====================================================
+
+
+async def answer_question(
+
+    question:str
+
+):
+
+
+    prompt = f"""
+
+Réponds clairement à cette question :
+
+{question}
+
+
+Explique simplement.
+
+"""
+
+
+    return await ask_ai(
+        prompt
+    )
+
+
+
+
 
 
 
@@ -281,63 +256,34 @@ def help_solution(
 # LEARN CONCEPT
 # =====================================================
 
-@app.post(
-    "/api/learn-concept/start"
-)
-def learn_concept(
-    data: ConceptRequest
+
+async def explain_concept(
+
+    concept:str
+
 ):
 
-    response_id = str(
-        uuid.uuid4()
+
+    prompt = f"""
+
+Tu es un professeur.
+
+Apprends le concept suivant :
+
+{concept}
+
+
+Structure :
+
+1. Explication simple
+2. Exemple
+3. Méthode
+4. Petit exercice
+
+
+"""
+
+
+    return await ask_ai(
+        prompt
     )
-
-
-    return sse_response(
-        response_id,
-        f"Apprentissage du concept : {data.concept}"
-    )
-
-
-
-# =====================================================
-# UPLOAD
-# =====================================================
-
-@app.post(
-    "/api/upload"
-)
-async def upload(
-    file: UploadFile = File(...)
-):
-
-    return {
-        "success": True,
-        "filename": file.filename,
-        "fileId": str(
-            uuid.uuid4()
-        )
-    }
-
-
-
-# =====================================================
-# ERREURS
-# =====================================================
-
-@app.exception_handler(
-    404
-)
-async def not_found(
-    request: Request,
-    exc
-):
-
-    return JSONResponse(
-        status_code=404,
-        content={
-            "success": False,
-            "message": "Endpoint introuvable"
-        }
-    )
-

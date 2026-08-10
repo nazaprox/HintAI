@@ -1,79 +1,96 @@
 """
-HintAI - FastAPI Backend
-Compatible Vercel
-
-Entrypoint:
-    api/index.py
-
-Architecture:
-    ai.py
-    config.py
-    storage.py
-    user.py
+HintAI Backend
+FastAPI + Render
 """
+
 
 from fastapi import (
     FastAPI,
-    Request,
     UploadFile,
     File,
     HTTPException,
+    Request
 )
+
 from fastapi.middleware.cors import CORSMiddleware
+
 from fastapi.responses import (
     StreamingResponse,
-    JSONResponse,
+    JSONResponse
 )
+
 from pydantic import BaseModel
+
 from typing import Optional
-import json
+
 import uuid
+import json
 import time
 import os
 
 
+from ai import (
+    analyze_exercise,
+    generate_hint,
+    generate_solution,
+    answer_question,
+    explain_concept
+)
+
+
+
+
+
 # =====================================================
-# APPLICATION
+# APP
 # =====================================================
 
+
 app = FastAPI(
+
     title="HintAI",
+
     version="1.0.0"
+
 )
+
+
+
 
 
 # =====================================================
 # CORS
 # =====================================================
 
+
 app.add_middleware(
+
     CORSMiddleware,
-    allow_origins=["https://hintai-frontend.onrender.com/"],
+
+    allow_origins=[
+
+        "https://hintai-frontend.onrender.com",
+
+        "*"
+
+    ],
+
     allow_credentials=True,
-    allow_methods=[
-        "*"
-    ],
-    allow_headers=[
-        "*"
-    ],
+
+    allow_methods=["*"],
+
+    allow_headers=["*"]
+
 )
 
 
-# =====================================================
-# CONFIG
-# =====================================================
 
-APP_NAME = "HintAI"
-
-ENVIRONMENT = os.getenv(
-    "VERCEL_ENV",
-    "development"
-)
 
 
 # =====================================================
-# MODELES
+# MODELS
 # =====================================================
+
 
 class HelpRequest(BaseModel):
 
@@ -87,6 +104,16 @@ class HelpRequest(BaseModel):
 
 
 
+
+
+class HintRequest(BaseModel):
+
+    responseId: str
+
+
+
+
+
 class QuestionRequest(BaseModel):
 
     responseId: str
@@ -95,13 +122,13 @@ class QuestionRequest(BaseModel):
 
 
 
+
+
 class ConceptRequest(BaseModel):
 
     concept: str
 
-    explanation: Optional[str] = ""
 
-    exercises: list = []
 
 
 
@@ -111,79 +138,161 @@ class ResponseRequest(BaseModel):
 
 
 
+
+
+
+
 # =====================================================
-# STREAM SSE
+# SSE
 # =====================================================
 
-def stream_answer(
-    response_id: str,
-    message: str
+
+def stream_text(
+
+    response_id,
+
+    text
+
 ):
 
+
     yield (
+
         "event: start\n"
-        f"data: {json.dumps({'id': response_id})}\n\n"
+
+        + json.dumps({
+
+            "id":response_id
+
+        })
+
+        + "\n\n"
+
     )
 
 
-    words = message.split()
+    for word in text.split():
 
-
-    for word in words:
 
         yield (
+
             "event: token\n"
-            f"data: {json.dumps({'text': word + ' '})}\n\n"
+
+            + json.dumps({
+
+                "text":word+" "
+
+            })
+
+            + "\n\n"
+
         )
 
+
         time.sleep(
-            0.03
+
+            0.02
+
         )
+
 
 
     yield (
+
         "event: complete\n"
-        f"data: {json.dumps({'responseId': response_id})}\n\n"
+
+        + json.dumps({
+
+            "responseId":response_id
+
+        })
+
+        + "\n\n"
+
     )
 
 
 
-def sse_response(
+
+
+
+
+def sse(
+
     response_id,
+
     text
+
 ):
 
+
     return StreamingResponse(
-        stream_answer(
+
+        stream_text(
+
             response_id,
+
             text
+
         ),
+
         media_type="text/event-stream"
+
     )
+
+
+
+
+
+
 
 
 # =====================================================
 # ROOT
 # =====================================================
 
+
 @app.get("/")
-def root():
+
+def home():
 
     return {
-        "service": APP_NAME,
-        "status": "online",
-        "environment": ENVIRONMENT
+
+
+        "service":"HintAI",
+
+        "status":"online",
+
+        "environment":os.getenv(
+
+            "RENDER",
+
+            "production"
+
+        )
+
     }
+
+
+
 
 
 
 @app.get("/api/health")
+
 def health():
 
     return {
-        "status": "ok",
-        "service": APP_NAME
+
+        "status":"ok",
+
+        "service":"HintAI"
+
     }
+
+
+
+
 
 
 
@@ -191,89 +300,172 @@ def health():
 # HELP ME
 # =====================================================
 
-@app.post(
-    "/api/help-me/start"
-)
-def help_me_start(
-    data: HelpRequest
+
+@app.post("/api/help-me/start")
+
+async def help_start(
+
+    data:HelpRequest
+
 ):
+
 
     if data.inputType not in [
+
         "text",
+
         "image",
+
         "pdf"
+
     ]:
 
+
         raise HTTPException(
+
             400,
-            "Invalid input type"
+
+            "Type invalide"
+
         )
 
 
-    response_id = str(
+
+    response_id=str(
+
         uuid.uuid4()
+
     )
 
 
-    return sse_response(
+
+    result = await analyze_exercise(
+
+        data.text or ""
+
+    )
+
+
+
+    return sse(
+
         response_id,
-        "Je vais analyser ton exercice étape par étape."
+
+        result
+
     )
 
 
 
-@app.post(
-    "/api/help-me/hint/{level}"
-)
-def help_hint(
-    level: int,
-    data: ResponseRequest
+
+
+
+
+@app.post("/api/help-me/hint/{level}")
+
+async def hint(
+
+    level:int,
+
+    data:HintRequest
+
 ):
 
-    if level not in [
-        1,
-        2,
-        3
-    ]:
+
+    if level not in [1,2,3]:
+
 
         raise HTTPException(
+
             400,
-            "Invalid hint level"
+
+            "Niveau invalide"
+
         )
 
 
-    return sse_response(
+
+    result = await generate_hint(
+
         data.responseId,
-        f"Voici un indice niveau {level}."
+
+        level
+
+    )
+
+
+    return sse(
+
+        data.responseId,
+
+        result
+
     )
 
 
 
-@app.post(
-    "/api/help-me/question"
-)
-def help_question(
-    data: QuestionRequest
+
+
+
+
+@app.post("/api/help-me/question")
+
+async def question(
+
+    data:QuestionRequest
+
 ):
 
-    return sse_response(
+
+    result = await answer_question(
+
+        data.question
+
+    )
+
+
+    return sse(
+
         data.responseId,
-        "Je réponds à ta question."
+
+        result
+
     )
 
 
 
-@app.post(
-    "/api/help-me/solution"
-)
-def help_solution(
-    data: ResponseRequest
+
+
+
+
+@app.post("/api/help-me/solution")
+
+async def solution(
+
+    data:ResponseRequest
+
 ):
 
-    return sse_response(
-        data.responseId,
-        "Voici la résolution complète."
+
+    result = await generate_solution(
+
+        data.responseId
+
     )
+
+
+    return sse(
+
+        data.responseId,
+
+        result
+
+    )
+
+
+
+
+
 
 
 
@@ -281,22 +473,41 @@ def help_solution(
 # LEARN CONCEPT
 # =====================================================
 
-@app.post(
-    "/api/learn-concept/start"
-)
-def learn_concept(
-    data: ConceptRequest
+
+@app.post("/api/learn-concept/start")
+
+async def learn(
+
+    data:ConceptRequest
+
 ):
 
-    response_id = str(
+
+    response_id=str(
+
         uuid.uuid4()
+
     )
 
 
-    return sse_response(
+    result = await explain_concept(
+
+        data.concept
+
+    )
+
+
+    return sse(
+
         response_id,
-        f"Apprentissage du concept : {data.concept}"
+
+        result
+
     )
+
+
+
+
 
 
 
@@ -304,39 +515,63 @@ def learn_concept(
 # UPLOAD
 # =====================================================
 
-@app.post(
-    "/api/upload"
-)
+
+@app.post("/api/upload")
+
 async def upload(
-    file: UploadFile = File(...)
+
+    file:UploadFile = File(...)
+
 ):
 
+
     return {
-        "success": True,
-        "filename": file.filename,
-        "fileId": str(
+
+
+        "success":True,
+
+        "filename":file.filename,
+
+        "fileId":str(
+
             uuid.uuid4()
+
         )
+
     }
 
 
 
+
+
+
+
 # =====================================================
-# ERREURS
+# ERROR
 # =====================================================
 
-@app.exception_handler(
-    404
-)
-async def not_found(
-    request: Request,
+
+@app.exception_handler(404)
+
+async def error404(
+
+    request:Request,
+
     exc
+
 ):
 
+
     return JSONResponse(
+
         status_code=404,
+
         content={
-            "success": False,
-            "message": "Endpoint introuvable"
+
+            "success":False,
+
+            "message":"Route inexistante"
+
         }
+
     )

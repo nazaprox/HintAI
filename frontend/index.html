@@ -1,853 +1,596 @@
-
 <!DOCTYPE html>
 <html lang="fr">
+
 <head>
-    <meta charset="UTF-8">
 
-    <meta
-        name="viewport"
-        content="width=device-width, initial-scale=1.0"
-    >
+<meta charset="UTF-8">
 
-    <meta
-        name="theme-color"
-        content="#0f172a"
-    >
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-    <meta
-        name="description"
-        content="HintAI — Ton assistant pédagogique intelligent."
-    >
+<title>HintAI</title>
 
-    <title>HintAI</title>
+<meta name="theme-color" content="#101827">
 
-    <link
-        rel="stylesheet"
-        href="/frontend/style.css"
-    >
+<link rel="stylesheet" href="style.css">
 
-    <!-- OpenCV.js -->
-    <script
-        async
-        src="https://docs.opencv.org/4.x/opencv.js"
-        type="text/javascript"
-    ></script>
 </head>
+
 
 <body>
 
-    <!-- ================================================== -->
-    <!-- APP -->
-    <!-- ================================================== -->
 
-    <div id="app">
-
-        <!-- ================================================== -->
-        <!-- HEADER -->
-        <!-- ================================================== -->
+<div id="app">
 
-        <header class="topbar">
 
-            <div class="brand">
-                <div class="brand-logo">
-                    H
-                </div>
+<header class="topbar">
 
-                <div>
-                    <h1>HintAI</h1>
-                    <span>Apprendre autrement</span>
-                </div>
-            </div>
+<div class="brand">
+<span>💡</span>
+HintAI
+</div>
 
-            <div class="topbar-actions">
 
-                <button
-                    id="historyButton"
-                    class="icon-button"
-                    type="button"
-                    aria-label="Historique"
-                >
-                    ↶
-                </button>
+<div class="credit-box">
 
-                <button
-                    id="creditsButton"
-                    class="credits-button"
-                    type="button"
-                >
-                    <span>⚡</span>
-                    <strong id="creditsValue">20</strong>
-                </button>
+⭐
+<span id="credits">
+20
+</span>
 
-                <button
-                    id="accountButton"
-                    class="avatar-button"
-                    type="button"
-                    aria-label="Compte"
-                >
-                    U
-                </button>
+</div>
 
-            </div>
+</header>
 
-        </header>
 
 
-        <!-- ================================================== -->
-        <!-- MAIN -->
-        <!-- ================================================== -->
+<main class="screens">
 
-        <main class="main-content">
 
-            <!-- ============================================== -->
-            <!-- HOME -->
-            <!-- ============================================== -->
 
-            <section
-                id="homeView"
-                class="view active"
-            >
+<!-- ================= HOME ================= -->
 
-                <div class="hero">
 
-                    <span class="hero-badge">
-                        ✨ Assistant pédagogique IA
-                    </span>
+<section 
+class="screen active"
+id="screen-home">
 
-                    <h2>
-                        Comprends.
-                        <span>Progresse.</span>
-                    </h2>
 
-                    <p>
-                        HintAI t'aide à comprendre tes exercices
-                        sans simplement te donner la réponse.
-                    </p>
+<div class="welcome">
 
-                </div>
+<h1>
+Bonjour 👋
+</h1>
 
 
-                <!-- ========================================== -->
-                <!-- MODES -->
-                <!-- ========================================== -->
+<p>
+Que veux-tu apprendre aujourd'hui ?
+</p>
 
-                <div class="mode-grid">
+</div>
 
-                    <button
-                        id="helpMeButton"
-                        class="mode-card help-card"
-                        type="button"
-                    >
 
-                        <div class="mode-icon">
-                            💡
-                        </div>
 
-                        <div class="mode-content">
+<div class="quick-actions">
 
-                            <h3>
-                                Help Me
-                            </h3>
 
-                            <p>
-                                Bloqué sur un exercice ?
-                                Analyse-le avec HintAI.
-                            </p>
+<button 
+class="big-action"
+data-go="help">
 
-                            <span class="mode-action">
-                                Commencer →
-                            </span>
+<div>
+📷
+</div>
 
-                        </div>
+<span>
+Résoudre un exercice
+</span>
 
-                    </button>
+</button>
 
 
-                    <button
-                        id="learnConceptButton"
-                        class="mode-card learn-card"
-                        type="button"
-                    >
 
-                        <div class="mode-icon">
-                            🧠
-                        </div>
+<button 
+class="big-action"
+data-go="learn">
 
-                        <div class="mode-content">
+<div>
+📚
+</div>
 
-                            <h3>
-                                Learn a Concept
-                            </h3>
+<span>
+Apprendre un concept
+</span>
 
-                            <p>
-                                Comprends un concept,
-                                puis entraîne-toi.
-                            </p>
+</button>
 
-                            <span class="mode-action">
-                                Apprendre →
-                            </span>
 
-                        </div>
+</div>
 
-                    </button>
 
-                </div>
 
 
-                <!-- ========================================== -->
-                <!-- STREAK -->
-                <!-- ========================================== -->
+<div class="card">
 
-                <div class="streak-card">
 
-                    <div class="streak-icon">
-                        🔥
-                    </div>
+<h3>
+🔥 Série quotidienne
+</h3>
 
-                    <div class="streak-info">
 
-                        <strong>
-                            Série
-                        </strong>
+<p>
+Continue tes actions pour gagner des crédits.
+</p>
 
-                        <span id="streakText">
-                            Commence une action aujourd'hui
-                        </span>
 
-                    </div>
+<div class="streak">
 
-                    <div class="streak-days">
+<span>1</span>
+<span>2</span>
+<span>3</span>
+<span>4</span>
+<span>5</span>
+<span>6</span>
+<span>7</span>
 
-                        <span class="streak-day">
-                            1
-                        </span>
+</div>
 
-                        <span class="streak-day">
-                            2
-                        </span>
 
-                        <span class="streak-day">
-                            3
-                        </span>
+</div>
 
-                        <span class="streak-day">
-                            4
-                        </span>
 
-                        <span class="streak-day">
-                            5
-                        </span>
 
-                        <span class="streak-day">
-                            6
-                        </span>
 
-                    </div>
 
-                </div>
+<div class="card">
 
-            </section>
 
+<h3>
+⭐ Mes crédits
+</h3>
 
-            <!-- ================================================== -->
-            <!-- HELP ME -->
-            <!-- ================================================== -->
 
-            <section
-                id="helpView"
-                class="view"
-            >
+<p>
 
-                <div class="view-header">
+Tu as actuellement
 
-                    <button
-                        id="helpBackButton"
-                        class="back-button"
-                        type="button"
-                    >
-                        ←
-                    </button>
+<strong>
+20 crédits
+</strong>
 
-                    <div>
-                        <h2>Help Me</h2>
-                        <p>
-                            Comprends ton exercice étape par étape.
-                        </p>
-                    </div>
+</p>
 
-                </div>
 
+</div>
 
-                <!-- ============================================== -->
-                <!-- INPUT -->
-                <!-- ============================================== -->
 
-                <div
-                    id="helpInputPanel"
-                    class="panel"
-                >
 
-                    <div class="panel-title">
-                        <span>📚</span>
-                        Ton exercice
-                    </div>
+</section>
 
-                    <textarea
-                        id="exerciseInput"
-                        class="exercise-input"
-                        rows="7"
-                        maxlength="20000"
-                        placeholder="Écris ou colle ton exercice ici..."
-                    ></textarea>
 
 
-                    <div class="input-tools">
 
-                        <label
-                            for="imageInput"
-                            class="tool-button"
-                        >
-                            📷
-                            <span>
-                                Photo
-                            </span>
-                        </label>
 
-                        <input
-                            id="imageInput"
-                            type="file"
-                            accept="image/*"
-                            capture="environment"
-                            hidden
-                        >
 
+<!-- ================= HELP ME ================= -->
 
-                        <label
-                            for="pdfInput"
-                            class="tool-button"
-                        >
-                            📄
-                            <span>
-                                PDF
-                            </span>
-                        </label>
 
-                        <input
-                            id="pdfInput"
-                            type="file"
-                            accept="application/pdf"
-                            hidden
-                        >
 
-                    </div>
+<section 
+class="screen"
+id="screen-help">
 
 
-                    <!-- ========================================== -->
-                    <!-- IMAGE PREVIEW -->
-                    <!-- ========================================== -->
 
-                    <div
-                        id="imagePreviewContainer"
-                        class="image-preview-container hidden"
-                    >
+<div class="page-title">
 
-                        <img
-                            id="imagePreview"
-                            alt="Aperçu de l'exercice"
-                        >
+<button class="back-home">
+←
+</button>
 
-                        <div class="preview-actions">
 
-                            <button
-                                id="analyzeImageButton"
-                                class="primary-button"
-                                type="button"
-                            >
-                                Analyser
-                            </button>
+<h2>
+💡 Help Me
+</h2>
 
-                            <button
-                                id="removeImageButton"
-                                class="secondary-button"
-                                type="button"
-                            >
-                                Supprimer
-                            </button>
 
-                        </div>
+</div>
 
-                    </div>
 
 
-                    <div class="help-actions">
+<div class="card">
 
-                        <button
-                            id="analyzeExerciseButton"
-                            class="primary-button large"
-                            type="button"
-                        >
-                            <span>✨</span>
-                            Analyser mon exercice
-                        </button>
 
-                        <button
-                            id="directSolutionButton"
-                            class="secondary-button large"
-                            type="button"
-                        >
-                            Résolution directe
-                        </button>
+<h3>
+Ton exercice
+</h3>
 
-                    </div>
 
-                </div>
 
+<div class="input-choice">
 
-                <!-- ============================================== -->
-                <!-- RESPONSE -->
-                <!-- ============================================== -->
 
-                <div
-                    id="helpResponsePanel"
-                    class="panel response-panel hidden"
-                >
+<button id="cameraBtn">
 
-                    <div class="response-header">
+📷 Photo
 
-                        <div class="response-status">
-                            <span
-                                id="responseStatusDot"
-                                class="status-dot"
-                            ></span>
+</button>
 
-                            <span id="responseStatus">
-                                Analyse...
-                            </span>
-                        </div>
 
-                        <button
-                            id="newHelpButton"
-                            class="secondary-button"
-                            type="button"
-                        >
-                            Nouvel exercice
-                        </button>
+<button id="pdfBtn">
 
-                    </div>
+📄 PDF
 
+</button>
 
-                    <div
-                        id="helpResponse"
-                        class="response-content"
-                    ></div>
 
 
-                    <!-- ========================================== -->
-                    <!-- HELP ACTIONS -->
-                    <!-- ========================================== -->
+</div>
 
-                    <div class="hint-actions">
 
-                        <button
-                            class="hint-button"
-                            data-hint-level="1"
-                            type="button"
-                        >
-                            💡 Indice 1
-                            <small>1 crédit</small>
-                        </button>
 
-                        <button
-                            class="hint-button"
-                            data-hint-level="2"
-                            type="button"
-                        >
-                            💡 Indice 2
-                            <small>1 crédit</small>
-                        </button>
+<input 
+type="file"
+id="fileInput"
+hidden
+accept="image/*,.pdf">
 
-                        <button
-                            class="hint-button"
-                            data-hint-level="3"
-                            type="button"
-                        >
-                            💡 Indice 3
-                            <small>1 crédit</small>
-                        </button>
 
-                    </div>
 
+<textarea
 
-                    <div class="question-box">
+id="exerciseInput"
 
-                        <input
-                            id="helpQuestionInput"
-                            type="text"
-                            maxlength="4000"
-                            placeholder="Pose une question..."
-                        >
+placeholder="Écris ton exercice ici..."
 
-                        <button
-                            id="helpQuestionButton"
-                            type="button"
-                        >
-                            →
-                        </button>
+></textarea>
 
-                    </div>
 
 
-                    <button
-                        id="solutionButton"
-                        class="solution-button"
-                        type="button"
-                    >
-                        🔓 Voir la résolution complète
-                        <span>2 crédits</span>
-                    </button>
+<button
+id="analyseBtn"
+class="primary">
 
-                </div>
+Analyser
 
-            </section>
+</button>
 
 
-            <!-- ================================================== -->
-            <!-- LEARN A CONCEPT -->
-            <!-- ================================================== -->
 
-            <section
-                id="learnView"
-                class="view"
-            >
+</div>
 
-                <div class="view-header">
 
-                    <button
-                        id="learnBackButton"
-                        class="back-button"
-                        type="button"
-                    >
-                        ←
-                    </button>
 
-                    <div>
-                        <h2>Learn a Concept</h2>
-                        <p>
-                            Apprends un concept puis entraîne-toi.
-                        </p>
-                    </div>
 
-                </div>
 
+<div class="card ai-box">
 
-                <div
-                    id="conceptInputPanel"
-                    class="panel"
-                >
 
-                    <div class="panel-title">
-                        <span>🧠</span>
-                        Que veux-tu apprendre ?
-                    </div>
+<h3>
+🤖 HintAI
+</h3>
 
-                    <input
-                        id="conceptInput"
-                        class="text-input"
-                        type="text"
-                        maxlength="1000"
-                        placeholder="Ex. Les dérivées, les fractions..."
-                    >
 
-                    <textarea
-                        id="conceptUnderstanding"
-                        class="exercise-input"
-                        rows="5"
-                        placeholder="Tu peux préciser ce que tu connais déjà..."
-                    ></textarea>
+<div id="response">
 
-                    <button
-                        id="startConceptButton"
-                        class="primary-button large"
-                        type="button"
-                    >
-                        ✨ Commencer l'apprentissage
-                    </button>
+Je suis prêt à t'aider.
 
-                </div>
+</div>
 
 
-                <div
-                    id="conceptResponsePanel"
-                    class="panel response-panel hidden"
-                >
 
-                    <div class="response-header">
+<div class="ai-actions">
 
-                        <div class="response-status">
 
-                            <span class="status-dot"></span>
+<button id="hintBtn">
 
-                            <span>
-                                Learn a Concept
-                            </span>
+💡 Indice
 
-                        </div>
+</button>
 
-                        <button
-                            id="newConceptButton"
-                            class="secondary-button"
-                            type="button"
-                        >
-                            Nouveau concept
-                        </button>
 
-                    </div>
 
+<button id="solutionBtn">
 
-                    <div
-                        id="conceptResponse"
-                        class="response-content"
-                    ></div>
+✅ Solution
 
+</button>
 
-                    <div class="concept-actions">
 
-                        <button
-                            id="easyExerciseButton"
-                            class="exercise-button"
-                            type="button"
-                        >
-                            <strong>
-                                🟢 Exercice simple
-                            </strong>
 
-                            <span>
-                                1 crédit
-                            </span>
-                        </button>
+</div>
 
 
-                        <button
-                            id="difficultExerciseButton"
-                            class="exercise-button"
-                            type="button"
-                        >
-                            <strong>
-                                🔴 Exercice difficile
-                            </strong>
 
-                            <span>
-                                2 crédits
-                            </span>
-                        </button>
+</div>
 
-                    </div>
 
 
-                    <div class="question-box">
+</section>
 
-                        <input
-                            id="conceptQuestionInput"
-                            type="text"
-                            maxlength="4000"
-                            placeholder="Pose une question sur le concept..."
-                        >
 
-                        <button
-                            id="conceptQuestionButton"
-                            type="button"
-                        >
-                            →
-                        </button>
 
-                    </div>
 
-                </div>
 
-            </section>
 
 
-            <!-- ================================================== -->
-            <!-- HISTORY -->
-            <!-- ================================================== -->
 
-            <section
-                id="historyView"
-                class="view"
-            >
+<!-- ================= LEARN ================= -->
 
-                <div class="view-header">
 
-                    <button
-                        id="historyBackButton"
-                        class="back-button"
-                        type="button"
-                    >
-                        ←
-                    </button>
 
-                    <div>
-                        <h2>Historique</h2>
-                        <p>
-                            Tes anciennes sessions.
-                        </p>
-                    </div>
+<section 
+class="screen"
+id="screen-learn">
 
-                </div>
 
-                <div
-                    id="historyList"
-                    class="history-list"
-                >
-                    <div class="empty-state">
-                        Aucun historique pour le moment.
-                    </div>
-                </div>
 
-            </section>
+<div class="page-title">
 
 
-            <!-- ================================================== -->
-            <!-- ACCOUNT -->
-            <!-- ================================================== -->
+<h2>
+📚 Learn
+</h2>
 
-            <section
-                id="accountView"
-                class="view"
-            >
 
-                <div class="view-header">
+</div>
 
-                    <button
-                        id="accountBackButton"
-                        class="back-button"
-                        type="button"
-                    >
-                        ←
-                    </button>
 
-                    <div>
-                        <h2>Mon compte</h2>
-                        <p>
-                            Ton profil et tes crédits.
-                        </p>
-                    </div>
 
-                </div>
 
+<div class="card">
 
-                <div class="account-card">
 
-                    <div class="account-avatar">
-                        U
-                    </div>
+<h3>
+Quel concept veux-tu apprendre ?
+</h3>
 
-                    <div>
-                        <strong id="accountPlan">
-                            Free
-                        </strong>
 
-                        <span id="accountUserId">
-                            Utilisateur
-                        </span>
-                    </div>
 
-                </div>
+<input
 
+id="conceptInput"
 
-                <div class="credits-card">
+placeholder="Exemple : dérivées"
 
-                    <div>
-                        <span>
-                            Crédits disponibles
-                        </span>
+>
 
-                        <strong id="accountCredits">
-                            20
-                        </strong>
-                    </div>
 
-                    <button
-                        id="buyCreditsButton"
-                        class="primary-button"
-                        type="button"
-                    >
-                        + 10 crédits — $1
-                    </button>
 
-                </div>
+<button
 
+id="learnStartBtn"
 
-                <div class="account-section">
+class="primary">
 
-                    <h3>
-                        Série actuelle
-                    </h3>
+Commencer
 
-                    <p id="accountStreak">
-                        0 jour
-                    </p>
+</button>
 
-                </div>
 
-            </section>
 
-        </main>
+</div>
 
 
-        <!-- ================================================== -->
-        <!-- LOADING -->
-        <!-- ================================================== -->
 
-        <div
-            id="loadingOverlay"
-            class="loading-overlay hidden"
-        >
 
-            <div class="loading-card">
 
-                <div class="loading-spinner"></div>
+<div class="card">
 
-                <strong id="loadingTitle">
-                    Analyse en cours...
-                </strong>
 
-                <span id="loadingMessage">
-                    HintAI prépare ta réponse.
-                </span>
+<h3>
+Progression
 
-            </div>
+</h3>
 
-        </div>
 
+<p>
+Explication → Questions → Exercices → Évaluation
+</p>
 
-        <!-- ================================================== -->
-        <!-- TOAST -->
-        <!-- ================================================== -->
 
-        <div
-            id="toast"
-            class="toast"
-            role="alert"
-        ></div>
+</div>
 
-    </div>
 
 
-    <!-- ================================================== -->
-    <!-- SCRIPTS -->
-    <!-- ================================================== -->
+</section>
 
-    <script
-        src="/frontend/analyser.js"
-    ></script>
-    <script>
-        window.HINTAI_API_URL = "https://hintai-ai.onrender.com";
-    </script>
 
-    <script src="main.js"></script>
+
+
+
+
+
+
+<!-- ================= PROFILE ================= -->
+
+
+
+<section
+
+class="screen"
+
+id="screen-profile">
+
+
+
+<div class="page-title">
+
+<h2>
+👤 Profil
+</h2>
+
+
+</div>
+
+
+
+
+<div class="card">
+
+
+<h3>
+Utilisateur Free
+</h3>
+
+
+
+<p>
+
+⭐
+
+<span id="profileCredits">
+
+20
+
+</span>
+
+crédits
+
+</p>
+
+
+
+<p>
+
+🔥 Série :
+
+<span id="profileStreak">
+
+0
+
+</span>
+
+jours
+
+</p>
+
+
+</div>
+
+
+
+
+
+<div class="card">
+
+
+<h3>
+Historique
+</h3>
+
+
+<div id="history">
+
+Aucune activité.
+
+</div>
+
+
+</div>
+
+
+
+</section>
+
+
+
+
+</main>
+
+
+
+
+
+
+
+
+<nav class="bottom-nav">
+
+
+<button 
+class="nav-item active"
+data-page="home">
+
+🏠
+
+<span>
+Home
+</span>
+
+</button>
+
+
+
+<button 
+class="nav-item"
+data-page="help">
+
+💡
+
+<span>
+Help
+</span>
+
+</button>
+
+
+
+
+<button 
+class="nav-item"
+data-page="learn">
+
+📚
+
+<span>
+Learn
+</span>
+
+</button>
+
+
+
+
+<button 
+class="nav-item"
+data-page="profile">
+
+👤
+
+<span>
+Profil
+</span>
+
+</button>
+
+
+
+</nav>
+
+
+
+
+
+</div>
+
+
+
+
+
+
+<script>
+
+window.HINTAI_API_URL =
+"https://hintai-ai.onrender.com";
+
+
+</script>
+
+
+<script src="main.js"></script>
+
 
 </body>
-</html>
 
+
+</html>
