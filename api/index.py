@@ -1,4 +1,3 @@
-```python
 """
 HintAI - FastAPI Backend
 Compatible Vercel
@@ -341,4 +340,4 @@ async def not_found(
             "message": "Endpoint introuvable"
         }
     )
-```
+
