@@ -1,0 +1,10 @@
+{
+  "name": "HintAI",
+  "short_name": "HintAI",
+  "description": "Assistant IA pour apprendre et résoudre des exercices",
+  "start_url": "/",
+  "display": "standalone",
+  "theme_color": "#111827",
+  "background_color": "#ffffff",
+  "icons": []
+}
