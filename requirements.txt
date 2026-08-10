@@ -1,0 +1,14 @@
+```txt
+fastapi
+uvicorn
+python-multipart
+pydantic
+pydantic-settings
+google-genai
+opencv-python-headless
+Pillow
+PyMuPDF
+python-jose[cryptography]
+passlib[bcrypt]
+httpx
+```
