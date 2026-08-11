@@ -1,596 +1,70 @@
 <!DOCTYPE html>
 <html lang="fr">
-
 <head>
-
 <meta charset="UTF-8">
-
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-
-<title>HintAI</title>
-
-<meta name="theme-color" content="#101827">
-
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#6366f1">
+<meta name="description" content="HintAI — ton assistant d'apprentissage IA">
+<link rel="manifest" href="manifest.json">
 <link rel="stylesheet" href="style.css">
-
+<title>HintAI</title>
 </head>
-
-
 <body>
-
-
 <div id="app">
-
-
 <header class="topbar">
-
-<div class="brand">
-<span>💡</span>
-HintAI
-</div>
-
-
-<div class="credit-box">
-
-⭐
-<span id="credits">
-20
-</span>
-
-</div>
-
+  <div class="brand"><span>💡</span><span>HintAI</span></div>
+  <div class="credit-box">⭐ <span id="credits">20</span></div>
 </header>
 
-
-
 <main class="screens">
-
-
-
-<!-- ================= HOME ================= -->
-
-
-<section 
-class="screen active"
-id="screen-home">
-
-
-<div class="welcome">
-
-<h1>
-Bonjour 👋
-</h1>
-
-
-<p>
-Que veux-tu apprendre aujourd'hui ?
-</p>
-
-</div>
-
-
-
-<div class="quick-actions">
-
-
-<button 
-class="big-action"
-data-go="help">
-
-<div>
-📷
-</div>
-
-<span>
-Résoudre un exercice
-</span>
-
-</button>
-
-
-
-<button 
-class="big-action"
-data-go="learn">
-
-<div>
-📚
-</div>
-
-<span>
-Apprendre un concept
-</span>
-
-</button>
-
-
-</div>
-
-
-
-
-<div class="card">
-
-
-<h3>
-🔥 Série quotidienne
-</h3>
-
-
-<p>
-Continue tes actions pour gagner des crédits.
-</p>
-
-
-<div class="streak">
-
-<span>1</span>
-<span>2</span>
-<span>3</span>
-<span>4</span>
-<span>5</span>
-<span>6</span>
-<span>7</span>
-
-</div>
-
-
-</div>
-
-
-
-
-
-<div class="card">
-
-
-<h3>
-⭐ Mes crédits
-</h3>
-
-
-<p>
-
-Tu as actuellement
-
-<strong>
-20 crédits
-</strong>
-
-</p>
-
-
-</div>
-
-
-
+<section class="screen active" id="screen-home">
+  <div class="welcome"><p class="eyebrow">TON ESPACE D'ÉTUDE</p><h1>Bonjour 👋</h1><p>Résous, apprends et progresse chaque jour.</p></div>
+  <div class="quick-actions">
+    <button class="big-action" data-go="help"><div>📷</div><span>Résoudre un exercice</span><small>Photo, PDF ou texte</small></button>
+    <button class="big-action" data-go="learn"><div>📚</div><span>Apprendre un concept</span><small>Explication + pratique</small></button>
+  </div>
+  <div class="card streak-card"><div class="card-heading"><h3>🔥 Série quotidienne</h3><span id="profileStreak">0 j</span></div><p>Une vraie action d'étude par jour pour garder ta série.</p><div class="streak"><span>1</span><span>2</span><span>3</span><span>4</span><span>5</span><span>6</span><span>7</span></div></div>
+  <div class="stats-grid"><div class="mini-card"><strong id="homeXp">0</strong><span>XP</span></div><div class="mini-card"><strong id="homeLevel">1</strong><span>Niveau</span></div><div class="mini-card"><strong id="homeSolved">0</strong><span>Résolus</span></div></div>
+  <div class="card"><div class="card-heading"><h3>⭐ Mes crédits</h3><button class="link-btn" data-page="profile">Gérer</button></div><p><strong id="homeCredits">20</strong> crédits disponibles.</p></div>
 </section>
 
-
-
-
-
-
-<!-- ================= HELP ME ================= -->
-
-
-
-<section 
-class="screen"
-id="screen-help">
-
-
-
-<div class="page-title">
-
-<button class="back-home">
-←
-</button>
-
-
-<h2>
-💡 Help Me
-</h2>
-
-
-</div>
-
-
-
-<div class="card">
-
-
-<h3>
-Ton exercice
-</h3>
-
-
-
-<div class="input-choice">
-
-
-<button id="cameraBtn">
-
-📷 Photo
-
-</button>
-
-
-<button id="pdfBtn">
-
-📄 PDF
-
-</button>
-
-
-
-</div>
-
-
-
-<input 
-type="file"
-id="fileInput"
-hidden
-accept="image/*,.pdf">
-
-
-
-<textarea
-
-id="exerciseInput"
-
-placeholder="Écris ton exercice ici..."
-
-></textarea>
-
-
-
-<button
-id="analyseBtn"
-class="primary">
-
-Analyser
-
-</button>
-
-
-
-</div>
-
-
-
-
-
-<div class="card ai-box">
-
-
-<h3>
-🤖 HintAI
-</h3>
-
-
-<div id="response">
-
-Je suis prêt à t'aider.
-
-</div>
-
-
-
-<div class="ai-actions">
-
-
-<button id="hintBtn">
-
-💡 Indice
-
-</button>
-
-
-
-<button id="solutionBtn">
-
-✅ Solution
-
-</button>
-
-
-
-</div>
-
-
-
-</div>
-
-
-
+<section class="screen" id="screen-help">
+  <div class="page-title"><button class="back-home" data-page="home">←</button><div><p class="eyebrow">PROBLÈME</p><h2>💡 Help Me</h2></div></div>
+  <div class="card">
+    <h3>Ton exercice</h3>
+    <div class="input-choice"><button id="cameraBtn">📷 Photo</button><button id="pdfBtn">📄 Document</button></div>
+    <input type="file" id="fileInput" hidden accept="image/*,.pdf">
+    <textarea id="exerciseInput" placeholder="Écris ton exercice ici..."></textarea>
+    <button id="analyseBtn" class="primary">Analyser · 2 crédits</button>
+    <p class="helper" id="fileStatus">Aucun fichier sélectionné.</p>
+  </div>
+  <div class="card ai-box"><div class="card-heading"><h3>🤖 HintAI</h3><span class="status-dot">En ligne</span></div><div id="response">Je suis prêt à t'aider.</div><div class="ai-actions"><button id="hintBtn">💡 Indice · 1</button><button id="solutionBtn">✅ Solution · 2</button></div></div>
 </section>
 
-
-
-
-
-
-
-
-<!-- ================= LEARN ================= -->
-
-
-
-<section 
-class="screen"
-id="screen-learn">
-
-
-
-<div class="page-title">
-
-
-<h2>
-📚 Learn
-</h2>
-
-
-</div>
-
-
-
-
-<div class="card">
-
-
-<h3>
-Quel concept veux-tu apprendre ?
-</h3>
-
-
-
-<input
-
-id="conceptInput"
-
-placeholder="Exemple : dérivées"
-
->
-
-
-
-<button
-
-id="learnStartBtn"
-
-class="primary">
-
-Commencer
-
-</button>
-
-
-
-</div>
-
-
-
-
-
-<div class="card">
-
-
-<h3>
-Progression
-
-</h3>
-
-
-<p>
-Explication → Questions → Exercices → Évaluation
-</p>
-
-
-</div>
-
-
-
+<section class="screen" id="screen-learn">
+  <div class="page-title"><div><p class="eyebrow">APPRENDRE</p><h2>📚 Learn</h2></div></div>
+  <div class="card"><h3>Quel concept veux-tu apprendre ?</h3><input id="conceptInput" placeholder="Exemple : dérivées"><button id="learnStartBtn" class="primary">Commencer · 2 crédits</button></div>
+  <div class="card"><h3>Progression</h3><div class="progress"><span></span></div><p>Explication → Questions → Exercices → Évaluation</p></div>
 </section>
 
-
-
-
-
-
-
-
-<!-- ================= PROFILE ================= -->
-
-
-
-<section
-
-class="screen"
-
-id="screen-profile">
-
-
-
-<div class="page-title">
-
-<h2>
-👤 Profil
-</h2>
-
-
-</div>
-
-
-
-
-<div class="card">
-
-
-<h3>
-Utilisateur Free
-</h3>
-
-
-
-<p>
-
-⭐
-
-<span id="profileCredits">
-
-20
-
-</span>
-
-crédits
-
-</p>
-
-
-
-<p>
-
-🔥 Série :
-
-<span id="profileStreak">
-
-0
-
-</span>
-
-jours
-
-</p>
-
-
-</div>
-
-
-
-
-
-<div class="card">
-
-
-<h3>
-Historique
-</h3>
-
-
-<div id="history">
-
-Aucune activité.
-
-</div>
-
-
-</div>
-
-
-
+<section class="screen" id="screen-profile">
+  <div class="page-title"><div><p class="eyebrow">MON COMPTE</p><h2>👤 Profil</h2></div></div>
+  <div class="profile-hero card"><div class="avatar">H</div><div><h3>Utilisateur Free</h3><p><span id="profileCredits">20</span> crédits · Niveau <span id="profileLevel">1</span></p></div></div>
+  <div class="stats-grid"><div class="mini-card"><strong id="profileXp">0</strong><span>XP</span></div><div class="mini-card"><strong id="profileSolved2">0</strong><span>Résolus</span></div><div class="mini-card"><strong id="profileStreak2">0</strong><span>Streak</span></div></div>
+  <div class="card"><h3>🏆 Progression</h3><div class="progress"><span id="xpProgress"></span></div><p>Gagne de l'XP en étudiant régulièrement.</p></div>
+  <div class="card"><h3>🕘 Historique</h3><div id="history">Aucune activité.</div></div>
 </section>
-
-
-
-
 </main>
 
-
-
-
-
-
-
-
 <nav class="bottom-nav">
-
-
-<button 
-class="nav-item active"
-data-page="home">
-
-🏠
-
-<span>
-Home
-</span>
-
-</button>
-
-
-
-<button 
-class="nav-item"
-data-page="help">
-
-💡
-
-<span>
-Help
-</span>
-
-</button>
-
-
-
-
-<button 
-class="nav-item"
-data-page="learn">
-
-📚
-
-<span>
-Learn
-</span>
-
-</button>
-
-
-
-
-<button 
-class="nav-item"
-data-page="profile">
-
-👤
-
-<span>
-Profil
-</span>
-
-</button>
-
-
-
+<button class="nav-item active" data-page="home">🏠<span>Accueil</span></button>
+<button class="nav-item" data-page="help">💡<span>Résoudre</span></button>
+<button class="nav-item" data-page="learn">📚<span>Apprendre</span></button>
+<button class="nav-item" data-page="profile">👤<span>Profil</span></button>
 </nav>
-
-
-
-
-
 </div>
-
-
-
-
-
-
-<script>
-
-window.HINTAI_API_URL =
-"https://hintai-ai.onrender.com";
-
-
-</script>
-
-
+<script>window.HINTAI_API_URL="https://hintai-ai-v2.onrender.com";</script>
+<script src="auth.js"></script>
 <script src="main.js"></script>
-
-
 </body>
-
-
 </html>
