@@ -1,5 +1,3 @@
-"""HintAI abuse protection helpers."""
-
 from collections import defaultdict
 from time import time
 
@@ -13,3 +11,7 @@ def allowed(identifier: str, limit: int = 20) -> bool:
         return False
     _requests[identifier].append(now)
     return True
+
+
+def check_rate_limit(identifier: str) -> bool:
+    return allowed(identifier, 30)
