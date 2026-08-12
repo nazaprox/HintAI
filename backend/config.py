@@ -13,6 +13,19 @@ API_PREFIX="/api"
 MAX_REQUEST_SIZE_MB=20
 MAX_TEXT_LENGTH=12000
 MAX_QUESTION_LENGTH=4000
+INITIAL_FREE_CREDITS=20
+COST_ANALYSIS=2
+COST_HINT=1
+COST_SOLUTION=2
+COST_LEARN=2
+REWARD_CREDITS=5
+MAX_REQUESTS_PER_MINUTE=30
+PAYMENT_ENABLED=os.getenv("PAYMENT_ENABLED","false").lower()=="true"
+ADS_ENABLED=os.getenv("ADS_ENABLED","false").lower()=="true"
+REWARDED_ADS_ENABLED=os.getenv("REWARDED_ADS_ENABLED","false").lower()=="true"
+PAYMENT_PROVIDER=os.getenv("PAYMENT_PROVIDER","")
+PAYMENT_SECRET_KEY=os.getenv("PAYMENT_SECRET_KEY","")
+PAYMENT_WEBHOOK_SECRET=os.getenv("PAYMENT_WEBHOOK_SECRET","")
 PLAN_CREDITS={"free":20,"basic":40,"pro":80,"pro_plus":150,"super":200,"heavy":300}
 PLAN_PRICES_USD={"free":Decimal("0"),"basic":Decimal("5"),"pro":Decimal("10"),"pro_plus":Decimal("15"),"super":Decimal("20"),"heavy":Decimal("30")}
 CREDIT_PACK_SIZE=10
@@ -21,9 +34,13 @@ ACTION_COSTS={"open_help_me":Decimal("0"),"text_input":Decimal("0"),"camera_capt
 ALLOWED_UPLOAD_TYPES={"image/jpeg","image/png","image/webp","application/pdf"}
 MAX_IMAGE_SIZE_MB=15
 MAX_PDF_SIZE_MB=20
+MAX_IMAGE_SIZE_BYTES=15*1024*1024
+MAX_PDF_SIZE_BYTES=20*1024*1024
+ALLOWED_IMAGE_MIME_TYPES=["image/jpeg","image/jpg","image/png","image/webp"]
+ALLOWED_PDF_MIME_TYPES=["application/pdf"]
 MAX_UPLOADS_PER_REQUEST=10
 UPLOAD_COST=Decimal("0.5")
-REWARDED_AD_CREDITS=Decimal("1")
+REWARDED_AD_CREDITS=Decimal("5")
 MAX_DAILY_REWARDED_ADS=20
 STREAK_ENABLED=True
 STREAK_3_DAYS=3
@@ -38,4 +55,3 @@ def get_action_cost(action:str)->Decimal:
     return ACTION_COSTS[action]
 def validate_configuration()->None:
     if not GEMINI_API_KEY: raise RuntimeError("GEMINI_API_KEY est obligatoire.")
-    if not GEMINI_MODEL: raise RuntimeError("GEMINI_MODEL est obligatoire.")
