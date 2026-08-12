@@ -4,4 +4,4 @@ google-genai==1.31.0
 python-multipart==0.0.20
 python-dotenv==1.1.1
 Pillow==11.3.0
-pydantic==2.10.6
+pydantic==2.12.5
